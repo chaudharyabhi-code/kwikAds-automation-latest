@@ -28,7 +28,7 @@ export class AdsLibrary {
     this.inactiveAdBadges        = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').getByText('Inactive', { exact: true });
     this.archivedAdBadges        = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').getByText('Archived', { exact: true });
     this.kaaiButton              = this.adsLibraryContent.locator('button').filter({ hasText: /KAAI/i }).nth(1);
-    this.selectButton            = this.adsLibraryContent.locator('button').filter({ hasText: 'Select' });
+    this.selectButton            = this.adsLibraryContent.locator("xpath=//button[contains(text(),'Select')]")
     this.kaaiOptionAll           = this.page.locator('.ant-select-dropdown').getByTitle('All', { exact: true });
     this.kaaiOptionAnalysed      = this.page.locator('.ant-select-dropdown').getByTitle('KAAI Analysed', { exact: true });
     this.kaaiOptionNotAnalysed   = this.page.locator('.ant-select-dropdown').getByTitle('Not Analysed', { exact: true });
@@ -40,6 +40,20 @@ export class AdsLibrary {
     // KAAI coverage popover (opens on clicking the "KAAI XX%" button)
     this.kaaiCoverageButton         = this.adsLibraryContent.locator('button').filter({ hasText: /KAAI \d+%/ });
     this.kaaiCoveragePopover        = this.page.locator('.ant-popover').filter({ hasText: 'KAAI Coverage' });
+    // Select mode toolbar elements (appear after clicking the Select button)
+    this.addToCollectionButton      = this.adsLibraryContent.locator('button').filter({ hasText: 'Add to Collection' });
+    this.cancelSelectionButton      = this.adsLibraryContent.locator('button').filter({ hasText: 'Cancel' });
+    this.selectionCountText         = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ selected/ });
+    // Collections tab and list
+    this.collectionsTab             = this.adsLibraryContent.locator('button').filter({ hasText: /^Collections$/ });
+    this.collectionListCards        = this.adsLibraryContent.locator("xpath=//button[contains(.,'New Collection')]/ancestor::div[@style='display: flex; flex-direction: column; gap: 12px;']/div[contains(@style,'display: grid')]/div");
+    // Inside an open collection
+    this.openCollectionTitle        = this.adsLibraryContent.locator('div[style*="font-weight: 600"][style*="font-size: 18px"]');
+    this.collectionShowingText      = this.adsLibraryContent.locator('span').filter({ hasText: /Showing \d+ ads/ });
+    // Icon-only back button (no visible text) — first button of its kind in the collection header
+    this.collectionBackButton       = this.adsLibraryContent.locator('button.ant-btn-icon-only').first();
+    // "Save to Collection" modal opened from the Add to Collection toolbar button
+    this.saveToCollectionModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Save to Collection' });
   }
 
   async navigateToAdsLibrary() {
@@ -120,10 +134,100 @@ export class AdsLibrary {
     await this.waitForFilter();
   }
 
+  async enterSelectMode() {
+    await this.selectButton.click();
+    await this.cancelSelectionButton.waitFor({ state: 'visible' });
+  }
+
+  async exitSelectMode() {
+    await this.cancelSelectionButton.click();
+    await this.selectButton.waitFor({ state: 'visible' });
+  }
+
+  // Clicks the first ad card to select it in select mode
+  async selectFirstAdCard() {
+    await this.adCardList.locator('div[style*="rgba(255, 255, 255, 0.92)"]').nth(0).click({ force: true });
+    await this.selectionCountText.waitFor({ state: 'visible' });
+  }
+
+  // Clicks the first N ad cards sequentially and returns the final count text
+  async selectAdCards(count) {
+    for (let i = 0; i < count; i++) {
+      await this.page.waitForTimeout(1000)
+      await this.adCardList.locator('div[style*="rgba(255, 255, 255, 0.92)"]').nth(0).click({ force: true });
+    }
+    await this.selectionCountText.waitFor({ state: 'visible' });
+    return await this.selectionCountText.innerText();
+  }
+
   async openKaaiCoveragePopover() {
     await this.kaaiCoverageButton.click();
     await this.kaaiCoveragePopover.waitFor({ state: 'visible' });
   }
+
+  // ── Collections ──────────────────────────────────────────────────────────────
+
+  async navigateToCollections() {
+    await this.collectionsTab.click({ force: true });
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  // Opens the first collection card visible in the collections list
+  async openFirstCollectionCard() {
+    await this.collectionListCards.first().waitFor({ state: 'visible' });
+    await this.collectionListCards.first().click();
+    await this.page.waitForLoadState('networkidle');
+    await this.page.locator("div span[aria-label='loading']").nth(0).waitFor({ state: 'hidden' }).catch(() => {});
+  }
+
+
+  // Returns the title of the currently open collection
+  async getOpenCollectionName() {
+    return (await this.openCollectionTitle.first().innerText()).trim();
+  }
+
+  // Returns the integer ad count from the "Showing X ads" label inside an open collection
+  async getOpenCollectionAdCount() {
+    await this.collectionShowingText.waitFor({ state: 'visible' });
+    const text = await this.collectionShowingText.innerText();
+    return parseInt(text.match(/\d+/)[0]);
+  }
+
+  // Clicks the back arrow to return to the collections list
+  async goBackFromCollection() {
+    await this.collectionBackButton.click();
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  // Opens the "Save to Collection" modal (must already be in select mode with cards selected)
+  async openAddToCollectionModal() {
+    await this.addToCollectionButton.click();
+    await this.saveToCollectionModal.waitFor({ state: 'visible' });
+  }
+
+  // Reads the ad count shown next to a collection name in the "Save to Collection" modal.
+  // Returns 0 when the collection is empty ("Empty board") or the name isn't found.
+  async getCountForCollectionInModal(collectionName) {
+    // Each row: cursor:pointer div → flex:1 div → [name div (font-weight:600), count div (font-size:11px)]
+    const row = this.saveToCollectionModal
+      .locator('[style*="cursor: pointer"]')
+      .filter({ hasText: collectionName })
+      .first();
+    const countText = await row.locator('[style*="font-size: 11px"]').innerText();
+    const match = countText.match(/(\d+)\s*ads?/i);
+    return match ? parseInt(match[1]) : 0;
+  }
+
+  // Clicks the named collection row in the "Save to Collection" modal and waits for it to close
+  async clickCollectionInModal(collectionName) {
+    const row = this.saveToCollectionModal.locator('[style*="cursor: pointer"]')
+      .filter({ hasText: collectionName }).first();
+    await row.click();
+    await this.saveToCollectionModal.waitFor({ state: 'hidden' });
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  // ── KAAI Coverage ─────────────────────────────────────────────────────────────
 
   // Returns { analyzed, pending, total, percentage } from the KAAI coverage popover
   async getKaaiCoverageStats() {
