@@ -43,9 +43,11 @@ export class LoginPage {
     await this.merchantChangeSearchInput.fill(process.env.MERCHANT_NAME);
     await this.page.waitForTimeout(1000);
     await this.merchantSelectCheckbox.check();
-        await this.page.waitForTimeout(1000);
-
+    await this.page.waitForTimeout(1000);
     await this.setMerchantButton.click();
-    
+    // Wait for the dialog to fully close before returning — merchant context is only
+    // committed once the dialog dismisses and the page settles
+    await this.page.locator('div[role="dialog"]').waitFor({ state: 'hidden' });
+    await this.page.waitForLoadState('networkidle');
   }
 }
