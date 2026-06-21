@@ -54,6 +54,15 @@ export class AdsLibrary {
     this.collectionBackButton       = this.adsLibraryContent.locator('button.ant-btn-icon-only').first();
     // "Save to Collection" modal opened from the Add to Collection toolbar button
     this.saveToCollectionModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Save to Collection' });
+    // 3-dot (kebab) menu on the first ad card
+    this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
+    this.cardDropdownMenu           = this.page.locator('.ant-dropdown').filter({ hasText: 'View Meta Ad Link' });
+    this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
+    // Card detail modal (opens by clicking a card)
+    this.cardDetailModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'KAAI Analysis' });
+    // Span whose text content is "Library ID: 1394977966061986 [copy icon]"
+    this.cardDetailLibraryIdEl = this.cardDetailModal.locator('span').filter({ hasText: /^Library ID:/ }).first();
+    this.cardDetailCloseBtn    = this.cardDetailModal.locator('button[aria-label="Close"]');
   }
 
   async navigateToAdsLibrary() {
@@ -158,6 +167,36 @@ export class AdsLibrary {
     }
     await this.selectionCountText.waitFor({ state: 'visible' });
     return await this.selectionCountText.innerText();
+  }
+
+  // ── Card 3-dot menu ───────────────────────────────────────────────────────────
+
+  async openFirstCardMenu() {
+    await this.firstCardMenuButton.nth(0).click();
+    await this.cardDropdownMenu.waitFor({ state: 'visible' });
+  }
+
+  async clickCardMenuOption(text) {
+    await this.cardDropdownMenu.locator('li[role="menuitem"]').filter({ hasText: text }).click();
+  }
+
+  // Opens the detail modal of the first card by clicking its image/media area
+  async openFirstCardDetail() {
+    const firstCard = this.adCardList.locator('[data-index="0"]');
+    // Click at y=100 inside the white card to land on the image area, away from corner buttons
+    await firstCard.locator('div[style*="rgb(255, 255, 255)"]').first().click({ position: { x: 100, y: 100 } });
+    await this.cardDetailModal.waitFor({ state: 'visible' });
+  }
+
+  async getCardDetailLibraryId() {
+    const text = await this.cardDetailLibraryIdEl.innerText();
+    // text is "Library ID: 1394977966061986" — extract the numeric ID
+    return text.match(/Library ID:\s*(\d+)/)?.[1]?.trim() ?? '';
+  }
+
+  async closeCardDetail() {
+    await this.cardDetailCloseBtn.click();
+    await this.cardDetailModal.waitFor({ state: 'hidden' });
   }
 
   async openKaaiCoveragePopover() {
