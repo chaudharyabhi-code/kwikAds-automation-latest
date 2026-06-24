@@ -68,6 +68,16 @@ export class AdsLibrary {
     this.kaaiModalLoader       = this.cardDetailModal.locator('span[aria-label="loading"]');
     // h3 visible only after analysis has completed
     this.kaaiModalContent      = this.cardDetailModal.locator('h3').filter({ hasText: 'KAAI Creative Analysis' });
+    // Competitors tab
+    this.competitorsTab            = this.adsLibraryContent.locator('button').filter({ hasText: /^Competitors$/ });
+    // Competitors page — search input and page-level loader
+    this.competitorSearchInput     = this.adsLibraryContent.locator('input[placeholder="Search competitor brands..."]');
+    // Success toast (Ant Design global message)
+    this.successToast              = this.page.locator('.ant-message-notice-success');
+    // Remove Competitor confirmation modal
+    this.removeCompetitorModal     = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Remove' });
+    this.removeCompetitorConfirmBtn = this.removeCompetitorModal.locator('button').filter({ hasText: /^Remove$/ });
+    this.removeCompetitorCancelBtn  = this.removeCompetitorModal.locator('button').filter({ hasText: 'Cancel' });
     // Share Creative popup (opens from the share icon button on each ad card)
     this.sharePopup            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Share Creative' });
     // Custom × close button (position:absolute, not the standard ant-modal-close)
@@ -228,6 +238,53 @@ export class AdsLibrary {
     await kaaiBtn.first().waitFor({ state: 'visible' });
     await kaaiBtn.first().click();
     await this.cardDetailModal.waitFor({ state: 'visible' });
+  }
+
+  // ── Competitor Icon ───────────────────────────────────────────────────────────
+
+  // Returns the brand name text from the first card in row 0
+  async getFirstCardBrandName() {
+    const row = this.adCardList.locator('[data-index="0"]');
+    await row.waitFor({ state: 'visible' });
+    return (await row.locator('h4').first().textContent()).trim();
+  }
+
+  // Clicks "Tag Competitor" on the given row/side; caller asserts the toast
+  async clickTagCompetitorBtn(row = 0, side = 'first') {
+    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
+    await rowLocator.waitFor({ state: 'visible' });
+    const btn = rowLocator.locator('button[title="Tag Competitor"]');
+    if (side === 'first') await btn.first().click();
+    else await btn.last().click();
+  }
+
+  // Clicks "Remove Competitor" on the given row/side; caller asserts the modal
+  async clickRemoveCompetitorBtn(row = 0, side = 'first') {
+    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
+    await rowLocator.waitFor({ state: 'visible' });
+    const btn = rowLocator.locator('button[title="Remove Competitor"]');
+    if (side === 'first') await btn.first().click();
+    else await btn.last().click();
+  }
+
+  async navigateToCompetitors() {
+    await this.competitorsTab.click({ force: true });
+    await this.page.waitForLoadState('networkidle');
+    await this.page.locator("span[aria-label='loading']").first()
+      .waitFor({ state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+  }
+
+  // Types brandName into the search box, presses Enter, and waits for results to load
+  async searchCompetitor(brandName) {
+    await this.competitorSearchInput.waitFor({ state: 'visible' });
+    await this.competitorSearchInput.fill(brandName);
+    await this.page.keyboard.press('Enter');
+    await this.page.waitForTimeout(300);
+    await this.page.locator("span[aria-label='loading']").first()
+      .waitFor({ state: 'hidden', timeout: 10000 })
+      .catch(() => {});
+    await this.page.waitForLoadState('networkidle');
   }
 
   // ── Share Creative popup ──────────────────────────────────────────────────────
