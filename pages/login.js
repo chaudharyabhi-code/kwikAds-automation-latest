@@ -40,7 +40,7 @@ export class LoginPage {
   }
   async selectMerchant() {
     await this.merchantChangeButton.click();
-    await this.merchantChangeSearchInput.fill(process.env.MERCHANT_NAME);
+    await this.merchantChangeSearchInput.fill(process.env.MERCHANT_ID);
     await this.page.waitForTimeout(1000);
     await this.merchantSelectCheckbox.check();
     await this.page.waitForTimeout(1000);

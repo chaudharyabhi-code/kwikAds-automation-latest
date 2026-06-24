@@ -58,11 +58,32 @@ export class AdsLibrary {
     this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
     this.cardDropdownMenu           = this.page.locator('.ant-dropdown').filter({ hasText: 'View Meta Ad Link' });
     this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
-    // Card detail modal (opens by clicking a card)
+    // Card detail modal (opens by clicking a card or the KAAI Analysis button)
     this.cardDetailModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'KAAI Analysis' });
     // Span whose text content is "Library ID: 1394977966061986 [copy icon]"
     this.cardDetailLibraryIdEl = this.cardDetailModal.locator('span').filter({ hasText: /^Library ID:/ }).first();
     this.cardDetailCloseBtn    = this.cardDetailModal.locator('button[aria-label="Close"]');
+    // KAAI Analysis state inside the modal
+    // Spinner visible while AI is processing (not-analysed card)
+    this.kaaiModalLoader       = this.cardDetailModal.locator('span[aria-label="loading"]');
+    // h3 visible only after analysis has completed
+    this.kaaiModalContent      = this.cardDetailModal.locator('h3').filter({ hasText: 'KAAI Creative Analysis' });
+    // Share Creative popup (opens from the share icon button on each ad card)
+    this.sharePopup            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Share Creative' });
+    // Custom × close button (position:absolute, not the standard ant-modal-close)
+    this.sharePopupCloseBtn    = this.sharePopup.locator('button[style*="position: absolute"]');
+    // Checkboxes — use the label wrapper (.ant-checkbox-wrapper) so we can both
+    // click (label is visible, no force needed) and assert state via
+    // toHaveClass(/ant-checkbox-wrapper-checked/) for checked,
+    // not.toHaveClass(...) for unchecked.
+    this.shareKaaiCheckbox    = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'KAAI Analysis' });
+    this.shareUgcCheckbox     = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'UGC Script' });
+    this.sharePromptsCheckbox = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'Prompts' });
+    // Primary action button — label is "Generate Link" before gen, "Regenerate Link" after
+    this.shareActionBtn        = this.sharePopup.locator('button.ant-btn-primary');
+    // Only visible after a link has been generated
+    this.shareLinkInput        = this.sharePopup.locator('input[readonly]');
+    this.shareCopyBtn          = this.sharePopup.locator('button').filter({ hasText: 'Copy' });
   }
 
   async navigateToAdsLibrary() {
@@ -197,6 +218,50 @@ export class AdsLibrary {
   async closeCardDetail() {
     await this.cardDetailCloseBtn.click();
     await this.cardDetailModal.waitFor({ state: 'hidden' });
+  }
+
+  // Clicks the KAAI Analysis button on the first card and waits for the modal to open.
+  // Works for both analysed and not-analysed cards — filter first to control which type.
+  async clickFirstKaaiButton() {
+    const firstCard = this.adCardList.locator('[data-index="0"]');
+    const kaaiBtn = firstCard.locator('button').filter({ hasText: /KAAI/i });
+    await kaaiBtn.first().waitFor({ state: 'visible' });
+    await kaaiBtn.first().click();
+    await this.cardDetailModal.waitFor({ state: 'visible' });
+  }
+
+  // ── Share Creative popup ──────────────────────────────────────────────────────
+
+  // row 0 = no scroll (default), row 1+ = scroll Virtuoso into view first
+  async openCardSharePopup(row = 0, side = 'first') {
+    if (row > 0) {
+      const scroller = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
+      await scroller.evaluate((el, r) => { el.scrollTop = r * 700; }, row);
+      await this.page.waitForTimeout(400);
+    }
+    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
+    await rowLocator.waitFor({ state: 'visible' });
+    if (side === 'first') {
+      await rowLocator.locator('button[title="Share Creative"]').first().click();
+    } else {
+      await rowLocator.locator('button[title="Share Creative"]').last().click();
+    }
+    await this.sharePopup.waitFor({ state: 'visible' });
+  }
+
+  async closeSharePopup() {
+    await this.sharePopupCloseBtn.click();
+    await this.sharePopup.waitFor({ state: 'hidden' });
+  }
+
+  // Clicks "Generate Link" / "Regenerate Link" and waits for the link input to appear
+  async generateShareLink() {
+    await this.shareActionBtn.click();
+    await this.shareLinkInput.waitFor({ state: 'visible' });
+  }
+
+  async getGeneratedShareLink() {
+    return await this.shareLinkInput.inputValue();
   }
 
   async openKaaiCoveragePopover() {

@@ -4,8 +4,9 @@ export class KwiksAdsCreativeAgent {
     this.kwidAdsSideBar      = this.page.locator('li div').filter({ hasText: 'KwikAds' });
     this.createAgent         = this.kwidAdsSideBar.locator('..').locator('ul li').filter({ hasText: 'Creative Agent' });
     // Merchant selector — available on the dashboard header after login
-    this.merchantChangeButton = this.page.locator('button[type="button"] span[role="img"]').nth(0);
+    this.merchantChangeButton = this.page.locator('button[type="button"] span[role="img"]').nth(1);
     this.merchantDialog       = this.page.locator('div[role="dialog"]');
+    this.merchantDialogLoader = this.merchantDialog.locator('span[aria-label="loading"]');
     this.merchantSearchInput  = this.merchantDialog.locator('input[type="text"]');
     this.merchantRadioFirst   = this.merchantDialog.locator('ul').locator('input[type="radio"]').nth(0);
     this.setMerchantButton    = this.merchantDialog.locator('button[type="button"]').filter({ hasText: 'Set Merchant' });
@@ -19,13 +20,17 @@ export class KwiksAdsCreativeAgent {
     await this.page.waitForLoadState('networkidle');
   }
 
-  // Selects MERCHANT_NAME from the dashboard merchant switcher.
+  // Selects MERCHANT_ID from the dashboard merchant switcher.
   // Runs on every goto() because merchant context is server-side and does not
   // survive across browser contexts even when storageState is restored.
   async selectMerchant() {
     await this.merchantChangeButton.click();
-    await this.merchantSearchInput.fill(process.env.MERCHANT_NAME);
-    await this.page.waitForTimeout(1000);
+    await this.merchantDialog.waitFor({ state: 'visible' });
+    // Wait for the initial merchant list to finish loading before typing
+    await this.merchantDialogLoader.waitFor({ state: 'hidden' });
+    await this.merchantSearchInput.fill(process.env.MERCHANT_ID);
+    // Wait for search results to reload after the query
+    await this.merchantDialogLoader.waitFor({ state: 'hidden' });
     await this.merchantRadioFirst.check();
     await this.page.waitForTimeout(500);
     await this.setMerchantButton.click();
