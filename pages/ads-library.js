@@ -4,6 +4,7 @@ export class AdsLibrary {
     this.adsLibraryContent       = this.page.locator('div[id="single-spa-application:@gokwik/kwikads"]');
     this.adsLibraryTab           = this.adsLibraryContent.locator('button').filter({ hasText: 'Ad Library' });
     this.searchInputBox          = this.adsLibraryContent.locator('input[placeholder="Search ads by Library ID, copy, brand name, layout attributes..."]');
+    this.searchClearBtn          = this.adsLibraryContent.locator('button[aria-label="Clear search"]');
     this.brandNameFilter         = this.adsLibraryContent.locator('label').filter({ hasText: 'Brand Name' }).locator('..').locator('.ant-select');
     this.adFormatFilter          = this.adsLibraryContent.locator('label').filter({ hasText: 'Ad Format' }).locator('..').locator('.ant-select');
     this.allStatusFilter         = this.adsLibraryContent.locator('label').filter({ hasText: 'All Status' }).locator('..').locator('.ant-select');
