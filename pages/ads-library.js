@@ -101,11 +101,20 @@ export class AdsLibrary {
     await this.adsLibraryContent.waitFor({ state: 'visible' });
     await this.adsLibraryTab.click({ force: true });
     await this.page.waitForLoadState('networkidle');
-    await this.page.locator("div span[aria-label='loading']").nth(0).waitFor({ state: 'hidden' });
+    // Scope to adsLibraryContent only — avoids matching spinners from other parts
+    // of the page (merchant dialog, KAAI sidebar, etc.) that may never hide
+    await this.adsLibraryContent.locator("span[aria-label='loading']")
+      .first()
+      .waitFor({ state: 'hidden', timeout: 30000 })
+      .catch(() => {});
+    await this.adCardList.waitFor({ state: 'visible' });
   }
 
   async waitForFilter() {
-    await this.page.locator("div span[aria-label='loading']").nth(0).waitFor({ state: 'hidden' });
+    await this.adsLibraryContent.locator("span[aria-label='loading']")
+      .first()
+      .waitFor({ state: 'hidden', timeout: 15000 })
+      .catch(() => {});
     await this.page.waitForLoadState('networkidle');
   }
 
@@ -309,7 +318,12 @@ export class AdsLibrary {
 
   async closeSharePopup() {
     await this.sharePopupCloseBtn.click();
-    await this.sharePopup.waitFor({ state: 'hidden' });
+    // Ant Design exit animation adds ant-zoom-leave-active before hiding;
+    // wait up to 5 s, then press Escape as fallback if animation gets stuck
+    await this.sharePopup.waitFor({ state: 'hidden', timeout: 5000 }).catch(async () => {
+      await this.page.keyboard.press('Escape');
+      await this.sharePopup.waitFor({ state: 'hidden' });
+    });
   }
 
   // Clicks "Generate Link" / "Regenerate Link" and waits for the link input to appear

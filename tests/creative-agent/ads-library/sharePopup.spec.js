@@ -2,226 +2,133 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// Two serial groups that run in parallel with each other — each group uses
-// distinct ads so server-side share-link state never collides between groups.
+// Each test targets a specific ad via Library ID search (env vars SHARE_AD_ID_1–4).
+// Searching by ID isolates the exact ad to row 0, first card — no dependency on
+// grid position or scroll. Tests run in parallel; no serial state.
 //
-// Group 1 → Ad A (row 0, first) + Ad B (row 0, last)
-// Group 2 → Ad C (row 2, first) + Ad D (row 2, last)
+//   Test 1 → SHARE_AD_ID_1  (default state, X-close, generate, readonly)
+//   Test 2 → SHARE_AD_ID_2  (checkbox interactions, button enable/disable)
+//   Test 3 → SHARE_AD_ID_3 + SHARE_AD_ID_4  (persistence + no carryover)
 //
-// Checkbox locators point to .ant-checkbox-wrapper (the label wrapper):
-//   - click via  .locator('.ant-checkbox-inner').click()  — the visible 16px square
-//   - assert via toHaveClass(/ant-checkbox-wrapper-checked/)
+// SHARE_AD_ID_1/2/3 should be ads with no previously generated share link
+// (first run only for the "no link" assertions; subsequent runs re-generate).
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GROUP 1
-// ═══════════════════════════════════════════════════════════════════════════════
-test.describe.serial('Share popup - group 1', () => {
+test('Share popup - default state, generate link, and link is readonly', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
 
-  // ─── Test 1 ───────────────────────────────────────────────────────────────
-  // Ad A — clean
-  test('opens with correct title/subtitle and KAAI Analysis checked by default', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
+  await adsLibrary.searchAd(process.env.SHARE_AD_ID_1);
+  await adsLibrary.waitForFilter();
+  await adsLibrary.openCardSharePopup(0, 'first');
 
-    await adsLibrary.openCardSharePopup(0, 'first');
+  // ── Default state ─────────────────────────────────────────────────────────
+  await expect(adsLibrary.sharePopup).toContainText('Share Creative');
+  await expect(adsLibrary.sharePopup).toContainText('Generate a shareable link for this ad');
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
+  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
 
-    await expect(adsLibrary.sharePopup).toContainText('Share Creative');
-    await expect(adsLibrary.sharePopup).toContainText('Generate a shareable link for this ad');
-    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  // ── Close via X → popup gone; reopen same ad → still no link ─────────────
+  await adsLibrary.closeSharePopup();
+  await expect(adsLibrary.sharePopup).not.toBeVisible();
 
-    await adsLibrary.closeSharePopup();
-  });
+  await adsLibrary.openCardSharePopup(0, 'first');
+  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
 
-  // ─── Test 2 ───────────────────────────────────────────────────────────────
-  // Ad A — still clean
-  test('closing via X closes the popup without generating a link', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
+  // ── Generate link ─────────────────────────────────────────────────────────
+  await adsLibrary.generateShareLink();
+  const link = await adsLibrary.getGeneratedShareLink();
+  expect(link).toMatch(/^https?:\/\/.+/);
+  await expect(adsLibrary.shareLinkInput).toBeVisible();
+  await expect(adsLibrary.shareCopyBtn).toBeVisible();
+  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+  await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-    await adsLibrary.openCardSharePopup(0, 'first');
+  // ── Link is readonly — typing must not change its value ───────────────────
+  await expect(adsLibrary.shareLinkInput).toHaveAttribute('readonly', '');
+  await adsLibrary.shareLinkInput.click();
+  await page.keyboard.type('EDIT_ATTEMPT');
+  expect(await adsLibrary.getGeneratedShareLink()).toBe(link);
 
-    await adsLibrary.closeSharePopup();
-    await expect(adsLibrary.sharePopup).not.toBeVisible();
-
-    // Reopen same ad — no link should be present
-    await adsLibrary.openCardSharePopup(0, 'first');
-    await expect(adsLibrary.shareLinkInput).not.toBeVisible();
-
-    await adsLibrary.closeSharePopup();
-  });
-
-  // ─── Test 3 ───────────────────────────────────────────────────────────────
-  // Ad A — first generation (KAAI only)
-  test('Generate Link with KAAI Analysis only produces a valid shareable link', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    await adsLibrary.openCardSharePopup(0, 'first');
-
-    await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
-    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
-
-    await adsLibrary.generateShareLink();
-
-    const link = await adsLibrary.getGeneratedShareLink();
-    expect(link).toMatch(/^https?:\/\/.+/);
-    await expect(adsLibrary.shareLinkInput).toBeVisible();
-    await expect(adsLibrary.shareCopyBtn).toBeVisible();
-
-    await adsLibrary.closeSharePopup();
-  });
-
-  // ─── Test 4 ───────────────────────────────────────────────────────────────
-  // Ad A — KAAI link exists from test 3; click UGC + Prompts inner to change
-  // selection (enables Regenerate), then regenerate with all 3
-  test('Generate Link with all 3 options checked produces a valid shareable link', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    await adsLibrary.openCardSharePopup(0, 'first');
-
-    await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-    await adsLibrary.sharePromptsCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-
-    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareUgcCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-
-    await adsLibrary.generateShareLink();
-
-    const link = await adsLibrary.getGeneratedShareLink();
-    expect(link).toMatch(/^https?:\/\/.+/);
-
-    await adsLibrary.closeSharePopup();
-  });
-
-  // ─── Test 5 ───────────────────────────────────────────────────────────────
-  // Ad A (has state from test 4) + Ad B (clean — never touched)
-  test('opening the popup for a different ad resets to default state (no carryover)', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    // Ad A has all 3 checked + a link. Toggle UGC to change selection
-    // (enables Regenerate Link), then regenerate to leave a dirty state.
-    await adsLibrary.openCardSharePopup(0, 'first');
-    await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-    await adsLibrary.generateShareLink();
-    await adsLibrary.closeSharePopup();
-
-    // Open Ad B — completely untouched, must be in default state with no carryover
-    await adsLibrary.openCardSharePopup(3, 'last');
-
-    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareLinkInput).not.toBeVisible();
-    await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
-    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
-
-    await adsLibrary.closeSharePopup();
-  });
-
-  // ─── Test 6 ───────────────────────────────────────────────────────────────
-  // Ad B — clean (test 5 only read it, no link generated)
-  test('Generate Link button is disabled when all options are unchecked', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    await adsLibrary.openCardSharePopup(0, 'last');
-
-    await adsLibrary.shareKaaiCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-    await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareActionBtn).toBeDisabled();
-
-    await adsLibrary.closeSharePopup();
-  });
-
+  await adsLibrary.closeSharePopup();
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GROUP 2
-// ═══════════════════════════════════════════════════════════════════════════════
-test.describe.serial('Share popup - group 2', () => {
+test('Share popup - checkbox interactions and Regenerate button enable/disable', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
 
-  // ─── Test 7 ───────────────────────────────────────────────────────────────
-  // Ad C (row 2, first) — clean
-  test('button changes from "Generate Link" to "Regenerate Link" after generation, stays disabled until checkbox changes', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
+  await adsLibrary.searchAd(process.env.SHARE_AD_ID_2);
+  await adsLibrary.waitForFilter();
+  await adsLibrary.openCardSharePopup(0, 'first');
 
-    await adsLibrary.openCardSharePopup(2, 'first');
+  // ── Uncheck KAAI → 0 options checked → button disabled ───────────────────
+  await adsLibrary.shareKaaiCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-    await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
-    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+  // ── Re-check KAAI → button enabled ───────────────────────────────────────
+  await adsLibrary.shareKaaiCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
 
-    await adsLibrary.generateShareLink();
+  // ── Also check UGC + Prompts → generate with all 3 ───────────────────────
+  await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await adsLibrary.sharePromptsCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareUgcCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
 
-    await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
-    await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  await adsLibrary.generateShareLink();
+  expect(await adsLibrary.getGeneratedShareLink()).toMatch(/^https?:\/\/.+/);
 
-    await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+  // ── After generate: button disabled; uncheck one → re-enabled ────────────
+  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+  await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-    await adsLibrary.closeSharePopup();
-  });
+  await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
 
-  // ─── Test 8 ───────────────────────────────────────────────────────────────
-  // Ad D (row 2, last) — clean
-  test('reopening the popup for the same ad retains previously generated link and checkbox state', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
+  await adsLibrary.closeSharePopup();
+});
 
-    await adsLibrary.openCardSharePopup(2, 'last');
-    await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').dispatchEvent('click');
-    await adsLibrary.generateShareLink();
-    const generatedLink = await adsLibrary.getGeneratedShareLink();
-    await adsLibrary.closeSharePopup();
+test('Share popup - generated link persists on reopen; different ad has no carryover', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
 
-    // Reopen the exact same ad
-    await adsLibrary.openCardSharePopup(2, 'last');
+  // ── Generate on Ad 3 ─────────────────────────────────────────────────────
+  await adsLibrary.searchAd(process.env.SHARE_AD_ID_3);
+  await adsLibrary.waitForFilter();
+  await adsLibrary.openCardSharePopup(0, 'first');
+  await adsLibrary.generateShareLink();
+  const savedLink = await adsLibrary.getGeneratedShareLink();
+  expect(savedLink).toMatch(/^https?:\/\/.+/);
+  await adsLibrary.closeSharePopup();
 
-    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareUgcCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-    await expect(adsLibrary.shareLinkInput).toBeVisible();
-    expect(await adsLibrary.getGeneratedShareLink()).toBe(generatedLink);
-    await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
-    await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  // ── Ad 4 (different ad) must be clean — no carryover from Ad 3 ───────────
+  await adsLibrary.searchAd(process.env.SHARE_AD_ID_4);
+  await adsLibrary.waitForFilter();
+  await adsLibrary.openCardSharePopup(0, 'first');
+  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
+  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+  await adsLibrary.closeSharePopup();
 
-    await adsLibrary.closeSharePopup();
-  });
-
-  // ─── Test 9 ───────────────────────────────────────────────────────────────
-  // Ad C — link already exists from test 7; just verify the field is readonly
-  test('generated link field is read-only and cannot be edited', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    await adsLibrary.openCardSharePopup(2, 'first');
-
-    // A link from test 7 is already present; if running in isolation, generate one
-    if (!(await adsLibrary.shareLinkInput.isVisible())) {
-      await adsLibrary.generateShareLink();
-    }
-
-    await expect(adsLibrary.shareLinkInput).toHaveAttribute('readonly', '');
-
-    const originalLink = await adsLibrary.getGeneratedShareLink();
-    await adsLibrary.shareLinkInput.click();
-    await page.keyboard.type('EDIT_ATTEMPT');
-    expect(await adsLibrary.getGeneratedShareLink()).toBe(originalLink);
-
-    await adsLibrary.closeSharePopup();
-  });
-
+  // ── Reopen Ad 3 → server-persisted link and state retained ───────────────
+  await adsLibrary.searchAd(process.env.SHARE_AD_ID_3);
+  await adsLibrary.waitForFilter();
+  await adsLibrary.openCardSharePopup(0, 'first');
+  await expect(adsLibrary.shareLinkInput).toBeVisible();
+  expect(await adsLibrary.getGeneratedShareLink()).toBe(savedLink);
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+  await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  await adsLibrary.closeSharePopup();
 });
