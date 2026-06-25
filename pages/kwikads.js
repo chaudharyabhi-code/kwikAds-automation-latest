@@ -15,6 +15,29 @@ export class KwiksAdsCreativeAgent {
   async goto() {
     await this.page.goto(process.env.BASE_URL);
     await this.page.waitForLoadState('networkidle');
+
+    // Overwrite ka_base_url cookie to point at the target backend, then reload
+    // so all subsequent API calls use the correct environment.
+    if (process.env.KA_BASE_URL) {
+      // Proxy every request the page makes to the private dev backend through
+      // Playwright's Node.js-side fetch. Because the *browser* never makes a
+      // direct connection to the private host, Chrome's Private Network Access
+      // (PNA) check never runs and the "Block / Allow" dialog never appears.
+      const backendOrigin = new URL(process.env.KA_BASE_URL).origin;
+      await this.page.route(`${backendOrigin}/**`, async route => {
+        const response = await route.fetch();
+        await route.fulfill({ response });
+      });
+
+      await this.page.context().addCookies([{
+        name:  'ka_base_url',
+        value: process.env.KA_BASE_URL,
+        url:   process.env.BASE_URL,
+      }]);
+      await this.page.reload();
+      await this.page.waitForLoadState('networkidle');
+    }
+
     await this.selectMerchant();
     await this.navigateToCreativeAgent();
     await this.page.waitForLoadState('networkidle');

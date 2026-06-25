@@ -32,8 +32,16 @@ export default defineConfig({
 
     headless: !!process.env.CI,
     viewport: null,
+    ignoreHTTPSErrors: true,
     launchOptions: {
-      args: ['--start-maximized'],
+      args: [
+        '--start-maximized',
+        // Disable Chrome's Private Network Access enforcement entirely so
+        // requests from the public-domain frontend to the private-IP dev
+        // backend are allowed without the "Block / Allow" dialog.
+        '--disable-features=PrivateNetworkAccessChecks',
+        '--disable-features=PrivateNetworkAccessPermissionPrompt',
+      ],
     },
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
