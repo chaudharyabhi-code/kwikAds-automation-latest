@@ -30,10 +30,11 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('')`. */
     // baseURL: 'http://localhost:3000',
 
-    headless: !!process.env.CI,
+    headless: false,
     viewport: null,
     ignoreHTTPSErrors: true,
     launchOptions: {
+      slowMo: 500,
       args: [
         '--start-maximized',
         // Disable Chrome's Private Network Access enforcement entirely so

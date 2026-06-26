@@ -124,7 +124,7 @@ test('Add to Collection - saves 2 selected ads and collection count increases by
   // ── Step 5: Navigate to Collections → open same collection → verify count ───
   await adsLibrary.navigateToCollections();
 
-  // await adsLibrary.openFirstCollectionCard();
+  await adsLibrary.openFirstCollectionCard();
 
   const countAfter = await adsLibrary.getOpenCollectionAdCount();
 

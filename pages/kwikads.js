@@ -13,22 +13,35 @@ export class KwiksAdsCreativeAgent {
   }
 
   async goto() {
+    if (process.env.KA_BASE_URL) {
+      // Register the proxy route BEFORE the first navigation.
+      // storageState may already contain ka_base_url from a previous auth
+      // save, so the initial page.goto() can immediately make requests to the
+      // private dev backend — the route must exist from the very first request.
+      //
+      // How it works: every request the browser tries to send to the private
+      // backend is intercepted; Playwright forwards it from Node.js (not from
+      // the browser), so Chrome's Private Network Access check never fires and
+      // the "Block / Allow" dialog never appears.
+      //
+      // The try/catch is essential: when the test ends and Playwright tears down
+      // the context, any in-flight route.fetch() throws "page has been closed".
+      // Without catching it, that error cascades and breaks other parallel tests.
+      const backendOrigin = new URL(process.env.KA_BASE_URL).origin;
+      await this.page.route(`${backendOrigin}/**`, async route => {
+        try {
+          const response = await route.fetch();
+          await route.fulfill({ response });
+        } catch {
+          // page/context closed while request was in-flight — safe to ignore
+        }
+      });
+    }
+
     await this.page.goto(process.env.BASE_URL);
     await this.page.waitForLoadState('networkidle');
 
-    // Overwrite ka_base_url cookie to point at the target backend, then reload
-    // so all subsequent API calls use the correct environment.
     if (process.env.KA_BASE_URL) {
-      // Proxy every request the page makes to the private dev backend through
-      // Playwright's Node.js-side fetch. Because the *browser* never makes a
-      // direct connection to the private host, Chrome's Private Network Access
-      // (PNA) check never runs and the "Block / Allow" dialog never appears.
-      const backendOrigin = new URL(process.env.KA_BASE_URL).origin;
-      await this.page.route(`${backendOrigin}/**`, async route => {
-        const response = await route.fetch();
-        await route.fulfill({ response });
-      });
-
       await this.page.context().addCookies([{
         name:  'ka_base_url',
         value: process.env.KA_BASE_URL,

@@ -25,10 +25,17 @@ export class AdsLibrary {
     this.statusOptionActiveAds   = this.page.locator('.ant-select-dropdown').getByTitle('Active Ads', { exact: true });
     this.statusOptionInactiveAds = this.page.locator('.ant-select-dropdown').getByTitle('Inactive Ads', { exact: true });
     this.statusOptionArchivedAds = this.page.locator('.ant-select-dropdown').getByTitle('Archived Ads', { exact: true });
-    this.activeAdBadges          = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').getByText(/^Active/);
-    this.inactiveAdBadges        = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').getByText('Inactive', { exact: true });
-    this.archivedAdBadges        = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').getByText('Archived', { exact: true });
-    this.kaaiButton              = this.adsLibraryContent.locator('button').filter({ hasText: /KAAI/i }).nth(1);
+    this.activeAdBadges = this.adsLibraryContent
+  .locator('.virtualized-ad-grid-scroller span[style*="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; font-size: 8px; font-weight: 700;"]')
+  .getByText(/^Active/);
+
+this.inactiveAdBadges = this.adsLibraryContent
+  .locator('.virtualized-ad-grid-scroller span[style*="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; font-size: 8px; font-weight: 700;"]')
+  .getByText('Inactive', { exact: true });
+
+this.archivedAdBadges = this.adsLibraryContent
+  .locator('.virtualized-ad-grid-scroller span[style*="display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 9999px; font-size: 8px; font-weight: 700;"]')
+  .getByText('Archived', { exact: true });this.kaaiButton              = this.adsLibraryContent.locator('button').filter({ hasText: /KAAI/i }).nth(1);
     this.selectButton            = this.adsLibraryContent.locator("xpath=//button[contains(text(),'Select')]")
     this.kaaiOptionAll           = this.page.locator('.ant-select-dropdown').getByTitle('All', { exact: true });
     this.kaaiOptionAnalysed      = this.page.locator('.ant-select-dropdown').getByTitle('KAAI Analysed', { exact: true });
@@ -107,7 +114,7 @@ export class AdsLibrary {
       .first()
       .waitFor({ state: 'hidden', timeout: 30000 })
       .catch(() => {});
-    await this.adCardList.waitFor({ state: 'visible' });
+    await this.adCardList.first().waitFor({ state: 'visible' });
   }
 
   async waitForFilter() {
@@ -151,6 +158,9 @@ export class AdsLibrary {
     await this.searchInputBox.fill(query);
     await this.page.waitForTimeout(1000);
     await this.searchInputBox.press('Enter');
+  }
+  async searchValue(){
+    return await this.searchInputBox.inputValue();
   }
 
   // dateFrom / dateTo format: 'YYYY-MM-DD'  (e.g. '2026-01-06')
