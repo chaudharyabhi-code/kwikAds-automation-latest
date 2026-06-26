@@ -33,13 +33,15 @@ test('Card 3-dot menu - Copy Library ID copies value that matches Library ID sho
   // Step 2: Use 3-dot menu → Copy Library ID
   await adsLibrary.openFirstCardMenu();
   await adsLibrary.clickCardMenuOption('Copy Library ID');
+  await adsLibrary.searchInputBox.click(); // Focus the input
 
-  // Step 3: Read clipboard and compare
-  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-  const clipboardValue = await page.evaluate(() => navigator.clipboard.readText());
-  console.log('Clipboard value:', clipboardValue);
-
-  expect(clipboardValue).toBe(libraryIdFromModal);
+await page.keyboard.down('Control');
+await page.keyboard.down('Shift');
+await page.keyboard.press('V');
+await page.keyboard.up('Shift');
+await page.keyboard.up('Control');
+  const copiedId=await adsLibrary.searchValue();
+  expect(copiedId).toBe(libraryIdFromModal);
 });
 
 // ─── Test 3: Save to Collection from 3-dot menu opens collection modal ────────

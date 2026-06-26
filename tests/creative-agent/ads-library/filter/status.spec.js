@@ -12,12 +12,16 @@ test('ALL STATUS filter - Active + Inactive + Archived count = Total count', asy
   const totalCount    = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectStatus('Active Ads');
+  await page.waitForTimeout(2000);
+
   const activeCount   = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectStatus('Inactive Ads');
+  await page.waitForTimeout(2000);
   const inactiveCount = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectStatus('Archived Ads');
+  await page.waitForTimeout(2000);
   const archivedCount = await adsLibrary.getResultsCount();
 
   console.table({ totalCount, activeCount, inactiveCount, archivedCount });
@@ -32,6 +36,7 @@ test('ALL STATUS filter - Active Ads shows only Active badges, no Inactive or Ar
   await page.waitForLoadState('networkidle');
 
   await adsLibrary.selectStatus('Active Ads');
+  await page.waitForTimeout(2000);
 
   const activeBadges   = await adsLibrary.activeAdBadges.count();
   const inactiveBadges = await adsLibrary.inactiveAdBadges.count();
@@ -51,6 +56,7 @@ test('ALL STATUS filter - Inactive Ads shows only Inactive badges, no Active or 
   await page.waitForLoadState('networkidle');
 
   await adsLibrary.selectStatus('Inactive Ads');
+  await page.waitForTimeout(2000);
 
   const inactiveBadges = await adsLibrary.inactiveAdBadges.count();
   const activeBadges   = await adsLibrary.activeAdBadges.count();
@@ -70,6 +76,7 @@ test('ALL STATUS filter - Archived Ads shows only Archived badges, no Active or 
   await page.waitForLoadState('networkidle');
 
   await adsLibrary.selectStatus('Archived Ads');
+  await page.waitForTimeout(2000);
 
   const archivedBadges = await adsLibrary.archivedAdBadges.count();
   const activeBadges   = await adsLibrary.activeAdBadges.count();

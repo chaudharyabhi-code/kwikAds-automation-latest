@@ -2,15 +2,15 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// Each test targets a specific ad via Library ID search (env vars SHARE_AD_ID_1–4).
+// Each test targets a specific ad via Library ID search (env vars SHARE_LIBRARY_ID_1–4).
 // Searching by ID isolates the exact ad to row 0, first card — no dependency on
 // grid position or scroll. Tests run in parallel; no serial state.
 //
-//   Test 1 → SHARE_AD_ID_1  (default state, X-close, generate, readonly)
-//   Test 2 → SHARE_AD_ID_2  (checkbox interactions, button enable/disable)
-//   Test 3 → SHARE_AD_ID_3 + SHARE_AD_ID_4  (persistence + no carryover)
+//   Test 1 → SHARE_LIBRARY_ID_1  (default state, X-close, generate, readonly)
+//   Test 2 → SHARE_LIBRARY_ID_2  (checkbox interactions, button enable/disable)
+//   Test 3 → SHARE_LIBRARY_ID_3 + SHARE_LIBRARY_ID_4  (persistence + no carryover)
 //
-// SHARE_AD_ID_1/2/3 should be ads with no previously generated share link
+// SHARE_LIBRARY_ID_1/2/3 should be ads with no previously generated share link
 // (first run only for the "no link" assertions; subsequent runs re-generate).
 
 test('Share popup - default state, generate link, and link is readonly', async ({ page }) => {
@@ -18,7 +18,7 @@ test('Share popup - default state, generate link, and link is readonly', async (
   const adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
 
-  await adsLibrary.searchAd(process.env.SHARE_AD_ID_1);
+  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_1);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
 
@@ -62,7 +62,7 @@ test('Share popup - checkbox interactions and Regenerate button enable/disable',
   const adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
 
-  await adsLibrary.searchAd(process.env.SHARE_AD_ID_2);
+  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_2);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
 
@@ -102,7 +102,7 @@ test('Share popup - generated link persists on reopen; different ad has no carry
   await adsLibrary.navigateToAdsLibrary();
 
   // ── Generate on Ad 3 ─────────────────────────────────────────────────────
-  await adsLibrary.searchAd(process.env.SHARE_AD_ID_3);
+  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_3);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
   await adsLibrary.generateShareLink();
@@ -111,7 +111,7 @@ test('Share popup - generated link persists on reopen; different ad has no carry
   await adsLibrary.closeSharePopup();
 
   // ── Ad 4 (different ad) must be clean — no carryover from Ad 3 ───────────
-  await adsLibrary.searchAd(process.env.SHARE_AD_ID_4);
+  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_4);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
   await expect(adsLibrary.shareLinkInput).not.toBeVisible();
@@ -122,7 +122,7 @@ test('Share popup - generated link persists on reopen; different ad has no carry
   await adsLibrary.closeSharePopup();
 
   // ── Reopen Ad 3 → server-persisted link and state retained ───────────────
-  await adsLibrary.searchAd(process.env.SHARE_AD_ID_3);
+  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_3);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
   await expect(adsLibrary.shareLinkInput).toBeVisible();
