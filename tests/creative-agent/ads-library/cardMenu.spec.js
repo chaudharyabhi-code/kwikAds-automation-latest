@@ -78,3 +78,39 @@ test('Card 3-dot menu - clicking outside the open menu closes it without any act
 
   await expect(adsLibrary.cardDropdownMenu).not.toBeVisible();
 });
+
+// ─── Test 5: Only one 3-dot menu is open at a time ───────────────────────────
+test('Card 3-dot menu - opening a second card menu closes the first one automatically', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
+  await page.waitForLoadState('networkidle');
+
+  // Open the first card's menu
+  await adsLibrary.openFirstCardMenu();
+  await expect(adsLibrary.cardDropdownMenu).toBeVisible();
+
+  // Open the second card's menu without explicitly closing the first
+  await adsLibrary.openNthCardMenu(1);
+
+  // Only one dropdown should be visible — the first must have closed automatically
+  const openMenus = page.locator('.ant-dropdown:not(.ant-dropdown-hidden)');
+  await expect(openMenus).toHaveCount(1);
+});
+
+// ─── Test 6: 3-dot menu closes on page scroll ────────────────────────────────
+test('Card 3-dot menu - scrolling the ad grid closes the open menu', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
+  await page.waitForLoadState('networkidle');
+
+  await adsLibrary.openFirstCardMenu();
+  await expect(adsLibrary.cardDropdownMenu).toBeVisible();
+
+  // Scroll the virtuoso ad grid downward
+  const scroller = adsLibrary.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
+  await scroller.evaluate(el => el.scrollBy({ top: 400, behavior: 'instant' }));
+
+  await expect(adsLibrary.cardDropdownMenu).not.toBeVisible();
+});

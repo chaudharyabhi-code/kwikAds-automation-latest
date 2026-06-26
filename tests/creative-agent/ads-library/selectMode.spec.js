@@ -80,7 +80,34 @@ test('Select mode - Add to Collection button is disabled when no cards are selec
   await expect(adsLibrary.addToCollectionButton).toBeDisabled();
 });
 
-// ─── Test 6: Add to Collection ────────────────────────────────────────────────
+// ─── Test 6: Deselecting a card decrements the count ─────────────────────────
+test('Select mode - clicking a selected card deselects it and decrements count to 2', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
+  await page.waitForLoadState('networkidle');
+
+  await adsLibrary.enterSelectMode();
+  await adsLibrary.selectAdCards(3);
+
+  const countBefore = await adsLibrary.selectionCountText.innerText();
+  console.log('Count after selecting 3 cards:', countBefore);
+  expect(countBefore).toMatch(/^3 selected/);
+
+  // Click the first card in the grid again — in select mode this toggles selection
+  await adsLibrary.adCardList
+    .locator('[data-index="0"]')
+    .locator('div[style*="rgb(255, 255, 255)"]')
+    .first()
+    .click({ force: true, position: { x: 100, y: 150 } });
+
+  const countAfter = await adsLibrary.selectionCountText.innerText();
+  console.log('Count after deselecting one card:', countAfter);
+
+  expect(countAfter).toMatch(/^2 selected/);
+});
+
+// ─── Test 7: Add to Collection ────────────────────────────────────────────────
 // Flow:
 //   1. Open first collection → note actual ad count inside ("Showing X ads")
 //   2. Return to Ad Library → select 2 cards → open Add to Collection modal
