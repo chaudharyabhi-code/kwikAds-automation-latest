@@ -76,8 +76,10 @@ this.archivedAdBadges = this.adsLibraryContent
     this.kaaiModalLoader       = this.cardDetailModal.locator('span[aria-label="loading"]');
     // h3 visible only after analysis has completed
     this.kaaiModalContent      = this.cardDetailModal.locator('h3').filter({ hasText: 'KAAI Creative Analysis' });
-    // Competitors tab
+    // Top navigation tabs
+    this.myAdsTab                  = this.adsLibraryContent.locator('button').filter({ hasText: /^My Ads$/ });
     this.competitorsTab            = this.adsLibraryContent.locator('button').filter({ hasText: /^Competitors$/ });
+    this.aiAssistantTab            = this.adsLibraryContent.locator('button').filter({ hasText: /^AI Assistant$/ });
     // Competitors page — search input and page-level loader
     this.competitorSearchInput     = this.adsLibraryContent.locator('input[placeholder="Search competitor brands..."]');
     // Success toast (Ant Design global message)
@@ -128,6 +130,16 @@ this.archivedAdBadges = this.adsLibraryContent
   async getResultsCount() {
     const text = await this.resultsCount.innerText();
     return parseInt(text.split('of')[1].split('ads')[0].trim().replace(/,/g, ''));
+  }
+
+  // Returns { loaded: X, total: Y } from "X of Y ads"
+  async getResultsLoadedAndTotal() {
+    const text = await this.resultsCount.innerText();
+    const [loadedStr, rest] = text.split(' of ');
+    return {
+      loaded: parseInt(loadedStr.trim().replace(/,/g, '')),
+      total:  parseInt(rest.split(' ads')[0].trim().replace(/,/g, '')),
+    };
   }
 
   async selectStatus(status) {
@@ -225,6 +237,14 @@ this.archivedAdBadges = this.adsLibraryContent
   async openFirstCardMenu() {
     await this.firstCardMenuButton.nth(0).click();
     await this.cardDropdownMenu.waitFor({ state: 'visible' });
+  }
+
+  // Opens the 3-dot menu on the Nth card in the first Virtuoso row (0-based)
+  async openNthCardMenu(n) {
+    const btn = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger').nth(n);
+    await btn.scrollIntoViewIfNeeded();
+    await btn.click();
+    await this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)').waitFor({ state: 'visible' });
   }
 
   async clickCardMenuOption(text) {
