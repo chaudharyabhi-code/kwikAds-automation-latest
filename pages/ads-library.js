@@ -1,3 +1,5 @@
+import { expect } from '@playwright/test';
+
 export class AdsLibrary {
   constructor(page) {
     this.page = page;
@@ -116,7 +118,7 @@ this.archivedAdBadges = this.adsLibraryContent
       .first()
       .waitFor({ state: 'hidden', timeout: 30000 })
       .catch(() => {});
-    await this.adCardList.first().waitFor({ state: 'visible' });
+    await this.adCardList.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   }
 
   async waitForFilter() {
@@ -128,7 +130,14 @@ this.archivedAdBadges = this.adsLibraryContent
   }
 
   async getResultsCount() {
-    const text = await this.resultsCount.innerText();
+    let text = '';
+    await expect.poll(
+      async () => {
+        try { text = await this.resultsCount.innerText(); return true; }
+        catch { return false; }
+      },
+      { timeout: 45000, intervals: [500] }
+    ).toBe(true);
     return parseInt(text.split('of')[1].split('ads')[0].trim().replace(/,/g, ''));
   }
 
