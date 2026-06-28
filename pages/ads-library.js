@@ -90,6 +90,10 @@ this.archivedAdBadges = this.adsLibraryContent
     this.removeCompetitorModal     = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Remove' });
     this.removeCompetitorConfirmBtn = this.removeCompetitorModal.locator('button').filter({ hasText: /^Remove$/ });
     this.removeCompetitorCancelBtn  = this.removeCompetitorModal.locator('button').filter({ hasText: 'Cancel' });
+    // Breadcrumb
+    this.breadcrumbNav              = this.page.locator('nav.ant-breadcrumb');
+    this.breadcrumbHomeLink         = this.breadcrumbNav.locator('a[href="/"]');
+    this.breadcrumbCreativeAgentLink = this.breadcrumbNav.locator('a[href*="/kwikads"]');
     // Share Creative popup (opens from the share icon button on each ad card)
     this.sharePopup            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Share Creative' });
     // Custom × close button (position:absolute, not the standard ant-modal-close)
