@@ -64,6 +64,27 @@ test.describe.serial('Competitor Icon', () => {
   });
 
   // ─── Test 4 ───────────────────────────────────────────────────────────────
+  // Brand is still a saved competitor. Press Escape → modal closes, brand stays.
+  test('pressing Escape on Remove Competitor modal closes it without removing the brand', async ({ page }) => {
+    await new KwiksAdsCreativeAgent(page).goto();
+    const adsLibrary = new AdsLibrary(page);
+    await adsLibrary.navigateToAdsLibrary();
+
+    const brandName = await adsLibrary.getFirstCardBrandName();
+    await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
+    await expect(adsLibrary.removeCompetitorModal).toBeVisible();
+
+    // Press Escape — must close modal without triggering removal
+    await page.keyboard.press('Escape');
+    await adsLibrary.removeCompetitorModal.waitFor({ state: 'hidden' });
+
+    // Brand must still be in saved competitors — verify via Competitors page
+    await adsLibrary.navigateToCompetitors();
+    await adsLibrary.searchCompetitor(brandName);
+    await expect(adsLibrary.adsLibraryContent.getByText(brandName, { exact: true })).toBeVisible();
+  });
+
+  // ─── Test 5 ───────────────────────────────────────────────────────────────
   // Brand is still a saved competitor. Confirm removal and verify it's gone.
   test('removed competitor no longer appears on Competitors page', async ({ page }) => {
     await new KwiksAdsCreativeAgent(page).goto();
