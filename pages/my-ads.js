@@ -16,9 +16,11 @@ this.myAdsTab = this.adsLibraryContent.getByRole('button', {
     this.resultsBadge = this.filtersDiv.locator('span[style*="monospace"][style*="background-color: rgb(241, 245, 249)"]');
 
     // Sub-tabs (All / Meta Creatives / Draft Creatives)
-    this.subTabAll   = this.filtersDiv.locator('.ant-segmented-item-label[title="All"]');
-    this.subTabMeta  = this.filtersDiv.locator('.ant-segmented-item-label[title="Meta Creatives"]');
-    this.subTabDraft = this.filtersDiv.locator('.ant-segmented-item-label[title="Draft Creatives"]');
+    this.subTabAll      = this.filtersDiv.locator('.ant-segmented-item-label[title="All"]');
+    this.subTabMeta     = this.filtersDiv.locator('.ant-segmented-item-label[title="Meta Creatives"]');
+    this.subTabDraft    = this.filtersDiv.locator('.ant-segmented-item-label[title="Draft Creatives"]');
+    // The label wrapping the currently-selected sub-tab gets ant-segmented-item-selected
+    this.activeSubTab   = this.filtersDiv.locator('label.ant-segmented-item-selected');
 
     // Filters
     this.adFormatFilter  = this.filtersDiv.locator('label').filter({ hasText: 'Ad Format' }).locator('..').locator('.ant-select');
@@ -33,6 +35,7 @@ this.myAdsTab = this.adsLibraryContent.getByRole('button', {
     this.resultsCount = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of [\d,]+ ads/ }).nth(0);
     this.adCardList   = this.adsLibraryContent.locator('[data-testid="virtuoso-item-list"]');
     this.scroller     = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').nth(0);
+    this.emptyState   = this.adsLibraryContent.getByText('No ads found matching your search', { exact: true });
 
     // Toolbar buttons — sibling div immediately after filtersDiv
     this.kaaiCoverageButton = this.filtersDiv.locator('xpath=./following-sibling::div[1]//button[contains(.,"KAAI")]').nth(0);
@@ -53,6 +56,14 @@ this.myAdsTab = this.adsLibraryContent.getByRole('button', {
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.adCardList.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  }
+
+  // Clicks a sub-tab label and waits for the loader to finish
+  async clickSubTab(subTabLocator) {
+    await subTabLocator.click();
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   }
 
   // Returns { loaded: X, total: Y } parsed from "X of Y ads"
