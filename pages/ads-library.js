@@ -115,13 +115,9 @@ this.archivedAdBadges = this.adsLibraryContent
   async navigateToAdsLibrary() {
     await this.adsLibraryContent.waitFor({ state: 'visible' });
     await this.adsLibraryTab.click({ force: true });
-    await this.page.waitForLoadState('networkidle');
-    // Scope to adsLibraryContent only — avoids matching spinners from other parts
-    // of the page (merchant dialog, KAAI sidebar, etc.) that may never hide
-    await this.adsLibraryContent.locator("span[aria-label='loading']")
-      .first()
-      .waitFor({ state: 'hidden', timeout: 30000 })
-      .catch(() => {});
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.adCardList.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   }
 
@@ -322,10 +318,9 @@ this.archivedAdBadges = this.adsLibraryContent
 
   async navigateToCompetitors() {
     await this.competitorsTab.click({ force: true });
-    await this.page.waitForLoadState('networkidle');
-    await this.page.locator("span[aria-label='loading']").first()
-      .waitFor({ state: 'hidden', timeout: 10000 })
-      .catch(() => {});
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   // Types brandName into the search box, presses Enter, and waits for results to load
@@ -388,15 +383,18 @@ this.archivedAdBadges = this.adsLibraryContent
 
   async navigateToCollections() {
     await this.collectionsTab.click({ force: true });
-    await this.page.waitForLoadState('networkidle');
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
   // Opens the first collection card visible in the collections list
   async openFirstCollectionCard() {
     await this.collectionListCards.first().waitFor({ state: 'visible' });
     await this.collectionListCards.first().click();
-    await this.page.waitForLoadState('networkidle');
-    await this.page.locator("div span[aria-label='loading']").nth(0).waitFor({ state: 'hidden' }).catch(() => {});
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
   }
 
 
