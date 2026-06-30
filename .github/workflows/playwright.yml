@@ -3,8 +3,6 @@ name: Playwright Tests
 on:
   push:
     branches: [master]
-  pull_request:
-    branches: [master]
 
 jobs:
   test:
@@ -24,16 +22,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
       - name: Create .env file from secret
         run: echo "${{ secrets.KWIKADS_SECRET_KEYS }}" > .env
+
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: 0
 
       - name: Run Playwright tests
         run: npx playwright test
         env:
           CI: true
+          PLAYWRIGHT_BROWSERS_PATH: 0
 
       - name: Upload Playwright HTML report
         uses: actions/upload-artifact@v4
