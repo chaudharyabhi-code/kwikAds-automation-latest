@@ -37,11 +37,6 @@ export default defineConfig({
       slowMo: 500,
       args: [
         '--start-maximized',
-        // Disable Chrome's Private Network Access enforcement entirely so
-        // requests from the public-domain frontend to the private-IP dev
-        // backend are allowed without the "Block / Allow" dialog.
-        '--disable-features=PrivateNetworkAccessChecks',
-        '--disable-features=PrivateNetworkAccessPermissionPrompt',
       ],
     },
 
@@ -59,6 +54,8 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
+        viewport: null,
+        deviceScaleFactor: undefined,
         storageState: '.auth/user.json',
       },
       dependencies: ['setup'],
