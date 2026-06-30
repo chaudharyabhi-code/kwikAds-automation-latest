@@ -27,22 +27,13 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
 
+      - name: Create .env file from secret
+        run: echo "${{ secrets.KWIKADS_SECRET_KEYS }}" > .env
+
       - name: Run Playwright tests
         run: npx playwright test
         env:
           CI: true
-          BASE_URL: ${{ secrets.BASE_URL }}
-          LOGIN_EMAIL: ${{ secrets.LOGIN_EMAIL }}
-          OTP: ${{ secrets.OTP }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          MERCHANT_ID: ${{ secrets.MERCHANT_ID }}
-          SEARCHABLE_LIBRARY_ID: ${{ secrets.SEARCHABLE_LIBRARY_ID }}
-          SHARE_LIBRARY_ID_1: ${{ secrets.SHARE_LIBRARY_ID_1 }}
-          SHARE_LIBRARY_ID_2: ${{ secrets.SHARE_LIBRARY_ID_2 }}
-          SHARE_LIBRARY_ID_3: ${{ secrets.SHARE_LIBRARY_ID_3 }}
-          SHARE_LIBRARY_ID_4: ${{ secrets.SHARE_LIBRARY_ID_4 }}
-          LAUNCH_DATE_FROM: ${{ secrets.LAUNCH_DATE_FROM }}
-          LAUNCH_DATE_TO: ${{ secrets.LAUNCH_DATE_TO }}
 
       - name: Upload Playwright HTML report
         uses: actions/upload-artifact@v4
