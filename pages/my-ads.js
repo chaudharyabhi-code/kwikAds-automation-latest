@@ -5,12 +5,15 @@ export class MyAds {
     this.page = page;
 
     this.adsLibraryContent = this.page.locator('div[id="single-spa-application:@gokwik/kwikads"]');
-    this.filtersDiv= this.adsLibraryContent.locator('div[style="border-radius: 14px; border: 1px solid rgb(226, 232, 240); background-color: rgb(255, 255, 255); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px; position: sticky; top: 44px; z-index: 1;"]')
+    this.filtersDiv= this.adsLibraryContent.locator('div[style="border-radius: 14px; border: 1px solid rgb(226, 232, 240); background-color: rgb(255, 255, 255); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px; position: sticky; top: 0px; z-index: 1;"]').nth(0)
 
-    // Top tab
-this.myAdsTab = this.adsLibraryContent.getByRole('button', {
-  name: 'My Ads',
-});
+    // Top nav tab (Creative Agent → My Ads)
+    this.myAdsTab = this.adsLibraryContent.getByRole('button', { name: 'My Ads' });
+
+    // Main tabs inside My Ads — Ads | Performance
+    // Distinguished from sub-tabs (All/Meta/Draft) which carry a title attribute
+    this.adsTab         = this.adsLibraryContent.locator('.ant-segmented-item-label:not([title])').filter({ hasText: /^Ads$/ }).first();
+    this.performanceTab = this.adsLibraryContent.locator('.ant-segmented-item-label:not([title])').filter({ hasText: 'Performance' }).first();
     // Search bar
     this.searchInput  = this.filtersDiv.locator('input[placeholder="Search by creative name or ID..."]');
     this.resultsBadge = this.filtersDiv.locator('span[style*="monospace"][style*="background-color: rgb(241, 245, 249)"]');
@@ -56,6 +59,14 @@ this.myAdsTab = this.adsLibraryContent.getByRole('button', {
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.adCardList.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
+  }
+
+  // Clicks a main tab (Ads / Performance) and waits for the loader
+  async clickMainTab(tabLocator) {
+    await tabLocator.click();
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   }
 
   // Clicks a sub-tab label and waits for the loader to finish
