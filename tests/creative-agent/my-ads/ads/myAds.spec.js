@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
-import { MyAds } from '../../../pages/my-ads';
+import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { MyAds } from '../../../../pages/my-ads';
 
 // ─── Test 1: All elements visible on My Ads page load ─────────────────────────
 test('My Ads - page loads with all required UI elements visible', async ({ page }) => {
@@ -9,7 +9,11 @@ test('My Ads - page loads with all required UI elements visible', async ({ page 
   await myAds.navigate();
   await page.waitForLoadState('networkidle');
 
-  // Sub-tabs
+  // Main tabs — Ads and Performance must both be visible; Ads is active by default
+  await expect(myAds.adsTab).toBeVisible();
+  await expect(myAds.performanceTab).toBeVisible();
+
+  // Sub-tabs (inside Ads tab)
   await expect(myAds.subTabAll.first()).toBeVisible();
   await expect(myAds.subTabMeta.first()).toBeVisible();
   await expect(myAds.subTabDraft.first()).toBeVisible();

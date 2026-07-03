@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
-import { MyAds } from '../../../pages/my-ads';
+import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { MyAds } from '../../../../pages/my-ads';
 
 // ─── Test 1: All 3 sub-tabs visible and All is active by default ──────────────
 test('My Ads - All 3 sub-tabs are visible and All tab is active by default', async ({ page }) => {
