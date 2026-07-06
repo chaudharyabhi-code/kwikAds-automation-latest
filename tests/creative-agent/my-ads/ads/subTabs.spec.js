@@ -104,22 +104,22 @@ test('My Ads - Draft Creatives tab disables Status, launch date, and min days ru
   await myAds.navigate();
 
   // On All tab — the three filters must be interactive (not disabled)
-  await expect(myAds.statusFilter.first()).not.toHaveClass(/ant-select-disabled/);
-  await expect(myAds.launchDateRange.first()).not.toHaveClass(/ant-picker-disabled/);
-  await expect(myAds.minDaysInput.first()).not.toBeDisabled();
+  await expect(myAds.statusFilter).not.toHaveClass(/ant-select-disabled/);
+  await expect(myAds.launchDateRange).not.toHaveClass(/ant-picker-disabled/);
+  await expect(myAds.minDaysInput).not.toBeDisabled();
 
   // Switch to Draft Creatives
   await myAds.clickSubTab(myAds.subTabDraft);
   await expect(myAds.activeSubTab).toContainText('Draft Creatives');
 
   // Status filter (Ant Design Select) — disabled class added to wrapper
-  await expect(myAds.statusFilter.first()).toHaveClass(/ant-select-disabled/);
+  await expect(myAds.statusFilter).toHaveClass(/ant-select-disabled/);
 
   // Launch date range (Ant Design RangePicker) — disabled class added to wrapper
-  await expect(myAds.launchDateRange.first()).toHaveClass(/ant-picker-disabled/);
+  await expect(myAds.launchDateRange).toHaveClass(/ant-picker-disabled/);
 
   // Min days running (native number input) — HTML disabled attribute set
-  await expect(myAds.minDaysInput.first()).toBeDisabled();
+  await expect(myAds.minDaysInput).toBeDisabled();
 });
 
 // ─── Test 6: Draft Creatives Sort By dropdown shows only "Recently Added" ───────
@@ -133,7 +133,7 @@ test('My Ads - Draft Creatives Sort By dropdown shows only Recently Added option
   await expect(myAds.activeSubTab).toContainText('Draft Creatives');
 
   // Open the Sort By dropdown
-  await myAds.sortByFilter.first().click();
+  await myAds.sortByFilter.click();
 
   // Ant Design renders dropdown options in a portal at body level — grab the visible one
   const dropdown = page.locator('.ant-select-dropdown').filter({ hasNot: page.locator('[style*="display: none"]') }).last();

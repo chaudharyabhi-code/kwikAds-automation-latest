@@ -14,34 +14,34 @@ test('My Ads - page loads with all required UI elements visible', async ({ page 
   await expect(myAds.performanceTab).toBeVisible();
 
   // Sub-tabs (inside Ads tab)
-  await expect(myAds.subTabAll.first()).toBeVisible();
-  await expect(myAds.subTabMeta.first()).toBeVisible();
-  await expect(myAds.subTabDraft.first()).toBeVisible();
+  await expect(myAds.subTabAll).toBeVisible();
+  await expect(myAds.subTabMeta).toBeVisible();
+  await expect(myAds.subTabDraft).toBeVisible();
 
   // Search bar
   await expect(myAds.searchInput).toBeVisible();
 
   // Filters
-  await expect(myAds.adFormatFilter.first()).toBeVisible();
-  await expect(myAds.statusFilter.first()).toBeVisible();
-  await expect(myAds.kaaiFilter.first()).toBeVisible();
-  await expect(myAds.sortByFilter.first()).toBeVisible();
+  await expect(myAds.adFormatFilter).toBeVisible();
+  await expect(myAds.statusFilter).toBeVisible();
+  await expect(myAds.kaaiFilter).toBeVisible();
+  await expect(myAds.sortByFilter).toBeVisible();
 
   // Date range and min days running
-  await expect(myAds.launchDateRange.first()).toBeVisible();
-  await expect(myAds.minDaysInput.first()).toBeVisible();
+  await expect(myAds.launchDateRange).toBeVisible();
+  await expect(myAds.minDaysInput).toBeVisible();
 
   // Order button
-  await expect(myAds.orderDescButton.first()).toBeVisible();
+  await expect(myAds.orderDescButton).toBeVisible();
   // Results count and ad card list
   await expect(myAds.resultsCount).toBeVisible();
-  await expect(myAds.adCardList.nth(0)).toBeVisible();
+  await expect(myAds.adCardList).toBeVisible();
 
   // Toolbar: KAAI %, Select, + upload, sync
   await expect(myAds.kaaiCoverageButton).toBeVisible();
   await expect(myAds.selectButton).toBeVisible();
-  await expect(myAds.uploadButton.first()).toBeVisible();
-  await expect(myAds.syncButton.first()).toBeVisible();
+  await expect(myAds.uploadButton).toBeVisible();
+  await expect(myAds.syncButton).toBeVisible();
 });
 
 // ─── Test 2: Results count shows loaded and total correctly ───────────────────
@@ -63,7 +63,7 @@ test('My Ads - results count shows 30 loaded initially and correct total', async
   expect(loaded).toBeLessThanOrEqual(total);
 
   // Badge in the search bar must show the same total
-  const badgeText = (await myAds.resultsBadge.first().innerText()).replace(/,/g, '');
+  const badgeText = (await myAds.resultsBadge.innerText()).replace(/,/g, '');
   expect(parseInt(badgeText)).toBe(total);
 });
 
