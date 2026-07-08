@@ -46,6 +46,13 @@ export class MyAds {
       .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').getByText('Paused', { exact: true });
     this.archivedAdBadges = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
       .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').getByText('Archived', { exact: true });
+    // KAAI card buttons — purple filled = analysed, white/transparent = not analysed
+    this.kaaiAnalysedCardButtons    = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
+      .locator('button[title="KAAI analysis ready"][style*="rgb(126, 34, 206)"]');
+    this.kaaiNotAnalysedCardButtons = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
+      .locator('button[style*="rgba(250, 245, 255, 0.6)"]');
+    // KAAI coverage popover (opens on clicking the KAAI XX% button)
+    this.kaaiCoveragePopover = this.page.locator('.ant-popover').filter({ hasText: 'KAAI Coverage' });
     // Ad Format dropdown options (portal-rendered by Ant Design)
     this.adFormatDropdownOptions = this.page.locator('.ant-select-dropdown .ant-select-item-option');
 
@@ -138,6 +145,32 @@ export class MyAds {
     await this.statusFilter.click();
     await this.page.locator('.ant-select-dropdown').getByTitle(status, { exact: true }).click();
     await this.waitForFilter();
+  }
+
+  // Clicks the KAAI Analysis dropdown and selects the given option ("All", "KAAI Analysed", "Not Analysed")
+  async selectKaaiOption(option) {
+    await this.kaaiFilter.click();
+    await this.page.locator('.ant-select-dropdown').getByTitle(option, { exact: true }).click();
+    await this.waitForFilter();
+  }
+
+  // Opens the KAAI coverage popover by clicking the KAAI XX% button
+  async openKaaiCoveragePopover() {
+    await this.kaaiCoverageButton.click();
+    await this.kaaiCoveragePopover.waitFor({ state: 'visible' });
+  }
+
+  // Returns { analyzed, pending, total, percentage } parsed from the KAAI coverage popover
+  async getKaaiCoverageStats() {
+    const text = await this.kaaiCoveragePopover.innerText();
+    const parse = (label) =>
+      parseInt((text.match(new RegExp(label + '[\\s\\t]+([\\d,]+)')) || [])[1]?.replace(/,/g, '') || '0');
+    const analyzed   = parse('Analyzed');
+    const pending    = parse('Pending');
+    const total      = parse('Total');
+    const btnText    = await this.kaaiCoverageButton.innerText();
+    const percentage = parseInt(btnText.match(/(\d+)%/)[1]);
+    return { analyzed, pending, total, percentage };
   }
 
   // Clicks a main tab (Ads / Performance) and waits for the loader
