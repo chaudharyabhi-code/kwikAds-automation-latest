@@ -36,6 +36,12 @@ export class MyAds {
     this.minDaysInput    = this.filtersDiv.locator('input[type="number"]').first();
     this.orderDescButton = this.filtersDiv.locator('button').filter({ hasText: 'Desc' }).first();
 
+    // Card format labels — scoped to first scroller only (two exist in DOM; second is hidden)
+    this.adCardVideoLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('VIDEO', { exact: true });
+    this.adCardImageLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('IMAGE', { exact: true });
+    // Ad Format dropdown options (portal-rendered by Ant Design)
+    this.adFormatDropdownOptions = this.page.locator('.ant-select-dropdown .ant-select-item-option');
+
     // Results and card list
     this.resultsCount = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of [\d,]+ ads/ }).first();
     this.adCardList   = this.adsLibraryContent.locator('[data-testid="virtuoso-item-list"]').first();
@@ -103,6 +109,21 @@ export class MyAds {
     await this.adDetailModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     const match = modalText.match(/Ad ID\s*[:\s]+(\d{10,})/);
     return match?.[1] ?? null;
+  }
+
+  // Waits for the spinner to appear then disappear after any filter action
+  async waitForFilter() {
+    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+    await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  // Clicks the Ad Format dropdown and selects the given option ("Video", "Image", "All Formats")
+  async selectAdFormat(format) {
+    await this.adFormatFilter.click();
+    await this.adFormatDropdownOptions.filter({ hasText: format }).click();
+    await this.waitForFilter();
   }
 
   // Clicks a main tab (Ads / Performance) and waits for the loader
