@@ -39,6 +39,13 @@ export class MyAds {
     // Card format labels — scoped to first scroller only (two exist in DOM; second is hidden)
     this.adCardVideoLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('VIDEO', { exact: true });
     this.adCardImageLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('IMAGE', { exact: true });
+    // Card status badges — scoped to first scroller; My Ads uses "Paused" (not "Inactive")
+    this.activeAdBadges   = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
+      .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').filter({ hasText: /^Active/ });
+    this.pausedAdBadges   = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
+      .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').getByText('Paused', { exact: true });
+    this.archivedAdBadges = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
+      .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').getByText('Archived', { exact: true });
     // Ad Format dropdown options (portal-rendered by Ant Design)
     this.adFormatDropdownOptions = this.page.locator('.ant-select-dropdown .ant-select-item-option');
 
@@ -123,6 +130,13 @@ export class MyAds {
   async selectAdFormat(format) {
     await this.adFormatFilter.click();
     await this.adFormatDropdownOptions.filter({ hasText: format }).click();
+    await this.waitForFilter();
+  }
+
+  // Clicks the Status dropdown and selects the given option ("All", "Active", "Paused", "Archived")
+  async selectStatus(status) {
+    await this.statusFilter.click();
+    await this.page.locator('.ant-select-dropdown').getByTitle(status, { exact: true }).click();
     await this.waitForFilter();
   }
 
