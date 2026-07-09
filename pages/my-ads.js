@@ -73,6 +73,13 @@ export class MyAds {
     this.selectButton       = this.filtersDiv.locator('xpath=./following-sibling::div[1]//button[contains(.,"Select")]').nth(0);
     this.uploadButton       = this.filtersDiv.locator('xpath=./following-sibling::div[1]//button[contains(@class,"ant-btn-primary") and contains(@class,"ant-btn-icon-only")]').nth(0);
     this.syncButton         = this.filtersDiv.locator('xpath=./following-sibling::div[1]//button[contains(@class,"ant-btn-default") and contains(@class,"ant-btn-icon-only")]').nth(0);
+
+    // Sync KAAI confirm modal (Ant Design confirm dialog)
+    this.syncKaaiModal          = this.page.locator('.ant-modal-confirm').filter({ hasText: 'Sync KAAI' });
+    this.syncKaaiModalSyncBtn   = this.syncKaaiModal.locator('button.ant-btn-primary');
+    this.syncKaaiModalCancelBtn = this.syncKaaiModal.locator('button.ant-btn-default');
+    // Tooltip shown on hover over the sync button
+    this.syncKaaiTooltip        = this.page.locator('.ant-tooltip-inner').filter({ hasText: 'Sync KAAI' });
   }
 
   async navigate() {
@@ -187,6 +194,18 @@ export class MyAds {
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
+  }
+
+  // Clicks the sync icon to open the Sync KAAI confirmation modal
+  async openSyncKaaiModal() {
+    await this.syncButton.click();
+    await this.syncKaaiModal.waitFor({ state: 'visible' });
+  }
+
+  // Confirms the Sync KAAI modal and waits for it to close
+  async confirmSyncKaai() {
+    await this.syncKaaiModalSyncBtn.click();
+    await this.syncKaaiModal.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   }
 
   // Returns { loaded: X, total: Y } parsed from "X of Y ads"
