@@ -16,6 +16,7 @@ export class LoginPage {
 
   async goto() {
     await this.page.goto(`${process.env.BASE_URL}/login`);
+    await this.emailInput.waitFor({ state: 'visible', timeout: 15000 });
   }
 
   async enterUsername() {
@@ -23,10 +24,12 @@ export class LoginPage {
   }
 
   async enterOTP() {
+    await this.otpInput.waitFor({ state: 'visible', timeout: 15000 });
     await this.otpInput.fill(process.env.OTP);
   }
 
   async enterPassword() {
+    await this.passwordInput.waitFor({ state: 'visible', timeout: 15000 });
     await this.passwordInput.fill(process.env.PASSWORD);
   }
 
