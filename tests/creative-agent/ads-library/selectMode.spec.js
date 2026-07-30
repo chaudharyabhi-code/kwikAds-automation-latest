@@ -75,9 +75,7 @@ test('Select mode - clicking a selected card deselects it and decrements count t
   expect(countBefore).toMatch(/^3 selected/);
 
   // Click the first card in the grid again — in select mode this toggles selection
-  await adsLibrary.adCardList
-    .locator('[data-index="0"]')
-    .locator('div[style*="rgb(255, 255, 255)"]')
+  await adsLibrary.getRowCardBodies(0)
     .first()
     .click({ force: true, position: { x: 100, y: 150 } });
 

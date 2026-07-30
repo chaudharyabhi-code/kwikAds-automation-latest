@@ -29,7 +29,7 @@ async function openSaveToCollectionModal() {
 // Helper: enter Select mode and pick the first two cards in the first virtuoso row.
 async function selectTwoAds() {
   await adsLibrary.enterSelectMode();
-  const overlays = adsLibrary.adCardList.locator('[data-index="0"]').locator('div[style*="rgba(255, 255, 255, 0.92)"]');
+  const overlays = adsLibrary.getRowSelectionOverlays(0);
   await overlays.nth(0).click({ force: true });
   await overlays.nth(1).click({ force: true });
   await adsLibrary.selectionCountText.waitFor({ state: 'visible' });
@@ -162,6 +162,9 @@ test.describe.serial('Create a new collection inline via "+ New Collection" in t
 
   // Remove the inline-created collection regardless of which test failed
   test.afterAll(async ({ browser }) => {
+    // Cleanup logs in from scratch (login + merchant select), which is slow on the
+    // dev env — the default 60s test budget is not enough and silently leaves data behind.
+    test.setTimeout(240000);
     const ctx  = await browser.newContext({ storageState: '.auth/user.json' });
     const page = await ctx.newPage();
     try {
@@ -224,7 +227,7 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
     await collections.clickSaveToCollectionRow(RESAVE_COLLECTION);
 
     await expect(collections.saveToCollectionModal).not.toBeVisible();
-    await expect(page.locator('.ant-message-notice')).toBeVisible({ timeout: 10000 });
+    await expect(collections.anyToast).toBeVisible({ timeout: 10000 });
 
     // ── Verify count in Collections tab ────────────────────────────────────────
     // Navigate to Collections and open the target collection's detail view
@@ -233,7 +236,7 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
     await targetCard.waitFor({ state: 'visible' });
     await targetCard.click();
 
-    const spinner = collections.adsLibraryContent.locator("span[aria-label='loading']").first();
+    const spinner = collections.pageSpinner;
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await collections.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -249,6 +252,9 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
 
   // Remove the disposable collection regardless of which test failed
   test.afterAll(async ({ browser }) => {
+    // Cleanup logs in from scratch (login + merchant select), which is slow on the
+    // dev env — the default 60s test budget is not enough and silently leaves data behind.
+    test.setTimeout(240000);
     const ctx  = await browser.newContext({ storageState: '.auth/user.json' });
     const page = await ctx.newPage();
     try {
@@ -293,7 +299,7 @@ test.describe.serial('Save to Collection — full save and verify flow', () => {
     await targetCard.waitFor({ state: 'visible' });
     await targetCard.click();
 
-    const spinner = collections.adsLibraryContent.locator("span[aria-label='loading']").first();
+    const spinner = collections.pageSpinner;
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await collections.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
@@ -307,6 +313,9 @@ test.describe.serial('Save to Collection — full save and verify flow', () => {
 
   // Remove the disposable collection regardless of which test failed
   test.afterAll(async ({ browser }) => {
+    // Cleanup logs in from scratch (login + merchant select), which is slow on the
+    // dev env — the default 60s test budget is not enough and silently leaves data behind.
+    test.setTimeout(240000);
     const ctx  = await browser.newContext({ storageState: '.auth/user.json' });
     const page = await ctx.newPage();
     try {

@@ -23,9 +23,7 @@ test('Breadcrumb - shows Home icon and Creative Agent label on the Creative Agen
 
   // Home icon link — href="/" and contains the home SVG icon
   await expect(adsLibrary.breadcrumbHomeLink).toBeVisible();
-  await expect(
-    adsLibrary.breadcrumbHomeLink.locator('[aria-label="home"]')
-  ).toBeVisible();
+  await expect(adsLibrary.breadcrumbHomeIcon).toBeVisible();
 
   // Creative Agent label — href points to /kwikads. The label renders uppercased
   // ("CREATIVE AGENT") via CSS, so match case-insensitively on the DOM text.

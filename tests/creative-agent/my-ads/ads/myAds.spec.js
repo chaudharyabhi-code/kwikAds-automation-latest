@@ -77,7 +77,7 @@ test('My Ads - scrolling down loads more ad cards beyond initial 30', async () =
     return;
   }
 
-  await myAds.scroller.evaluate(el => el.scrollTo({ top: el.scrollHeight, behavior: 'instant' }));
+  await myAds.scrollGridToBottom();
 
   let afterLoaded;
   await expect.poll(
@@ -100,7 +100,7 @@ test('My Ads - total ad count stays the same while loaded count grows on scroll'
     return;
   }
 
-  await myAds.scroller.evaluate(el => el.scrollTo({ top: el.scrollHeight, behavior: 'instant' }));
+  await myAds.scrollGridToBottom();
 await myAds.page.waitForTimeout(4000);
   let loadedAfter, totalAfter;
   await expect.poll(

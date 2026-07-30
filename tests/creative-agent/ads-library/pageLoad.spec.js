@@ -33,8 +33,7 @@ test('Ads Library - scrolling loads more cards while total count stays unchanged
   console.log(`Before scroll: ${loadedBefore} of ${totalBefore} ads`);
 
   // Scroll the virtuoso ad grid down to trigger the next batch load
-  const scroller = adsLibrary.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
-  await scroller.evaluate(el => el.scrollBy({ top: 80000, behavior: 'instant' }));
+  await adsLibrary.scrollAdGrid(80000);
 
   // Wait until the "X of Y ads" loaded count (X) increases
   await expect.poll(

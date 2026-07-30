@@ -68,7 +68,7 @@ test('My Ads - search triggers on pressing Enter and returns correct results', a
   await myAds.searchInput.fill(KNOWN_NAME);
   await myAds.searchInput.press('Enter');
 
-  const spinner = myAds.adsLibraryContent.locator("span[aria-label='loading']").first();
+  const spinner = myAds.pageSpinner;
   await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
   await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
 

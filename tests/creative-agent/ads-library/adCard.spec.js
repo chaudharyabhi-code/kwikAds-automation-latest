@@ -14,88 +14,74 @@ test.beforeEach(async ({ page }) => {
 
 // ─── Test 1: Every ad card shows all required UI elements ─────────────────────
 test('Ad card structure - each of the first 5 cards shows brand name, badge, date, format label, and action buttons', async () => {
-  const scroller = adsLibrary.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
-
   // 3 rows × 2 cards each = 6 cards checked (≥ 5 required)
   for (let i = 0; i < 3; i++) {
-    const row = adsLibrary.adCardList.locator(`[data-index="${i}"]`);
+    const row = adsLibrary.getAdRow(i);
 
     // Scroll the row into view so virtuoso renders it, then wait for it
     await row.scrollIntoViewIfNeeded();
     await row.waitFor({ state: 'visible' });
 
-    // Both cards in this row
-    const cards = row.locator('div[style*="width: calc(50%"]');
+    // Cards in this row (the grid renders 3 per row)
+    const cards = adsLibrary.getCardsInRow(i);
     const cardCount = await cards.count();
+    // Guard: if the card selector ever stops matching, the loop below would run zero
+    // times and this test would pass while asserting nothing.
+    expect(cardCount, `row ${i} should render at least one card`).toBeGreaterThan(0);
 
     for (let j = 0; j < cardCount; j++) {
       const card = cards.nth(j);
 
       // Brand name
-      await expect(card.locator('h4').first()).toBeVisible();
+      await expect(adsLibrary.cardBrandName(card)).toBeVisible();
 
       // Status badge (Active / Inactive / Archived)
-      await expect(
-        card.locator('span').filter({ hasText: /^(Active|Inactive|Archived)/ }).first()
-      ).toBeVisible();
+      await expect(adsLibrary.cardStatusBadge(card)).toBeVisible();
 
       // Launch date
-      await expect(
-        card.locator('span[style*="rgb(100, 116, 139)"]').first()
-      ).toBeVisible();
+      await expect(adsLibrary.cardLaunchDate(card)).toBeVisible();
 
       // Format label (IMAGE or VIDEO)
-      const formatLabel = card.getByText('IMAGE', { exact: true }).or(card.getByText('VIDEO', { exact: true }));
+      const formatLabel = adsLibrary.cardFormatLabel(card);
       await expect(formatLabel.first()).toBeVisible();
 
       // KAAI Analysis button
-      await expect(
-        card.locator('button').filter({ hasText: /KAAI/i }).first()
-      ).toBeVisible();
+      await expect(adsLibrary.cardKaaiButton(card)).toBeVisible();
 
-      // Share Creative button
-      await expect(card.locator('button[title="Share Creative"]').first()).toBeVisible();
+      // Request Creative button
+      await expect(adsLibrary.cardRequestCreativeButton(card)).toBeVisible();
 
-      // Download Creative button
-      await expect(card.locator('button[title="Download Creative"]').first()).toBeVisible();
-
-      // Competitor icon button (Tag or Remove)
-      await expect(
-        card.locator('button[title="Tag Competitor"], button[title="Remove Competitor"]').first()
-      ).toBeVisible();
-
-      // 3-dot menu button
-      await expect(card.locator('button.ant-dropdown-trigger').first()).toBeVisible();
+      // 3-dot menu button. Share Creative / Download Creative / Tag Competitor are no
+      // longer icon buttons on the card — they now live inside this menu, and are
+      // asserted in cardMenu.spec.js ("opens with exactly 6 options").
+      await expect(adsLibrary.cardMenuTrigger(card)).toBeVisible();
     }
 
     // Scroll the container down after each row so the next row enters the viewport
-    await scroller.evaluate(el => el.scrollBy({ top: 400, behavior: 'instant' }));
+    await adsLibrary.scrollAdGrid(400);
   }
 });
 
 // ─── Test 2: Badge colors are correct for Active, Inactive, and Archived ads ──
-// Colors confirmed from DevTools:
-//   Active   → rgb(82, 196, 26)   green
-//   Inactive → rgb(255, 77, 79)   red
-//   Archived → rgb(140, 140, 140) grey
+// The expected colours live on the page object (BADGE_COLOR_*), confirmed in DevTools.
 test('Ad card badge - Active is green, Inactive is red, Archived is grey', async () => {
   // ── Active: green ─────────────────────────────────────────────────────────────
   await adsLibrary.selectStatus('Active Ads');
   await adsLibrary.waitForFilter();
   await expect(adsLibrary.activeAdBadges.first()).toBeVisible();
-  await expect(adsLibrary.activeAdBadges.first()).toHaveCSS('color', 'rgb(82, 196, 26)');
+  await expect(adsLibrary.activeAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_ACTIVE);
 
   // ── Inactive: red ─────────────────────────────────────────────────────────────
   await adsLibrary.selectStatus('Inactive Ads');
   await adsLibrary.waitForFilter();
   await expect(adsLibrary.inactiveAdBadges.first()).toBeVisible();
-  await expect(adsLibrary.inactiveAdBadges.first()).toHaveCSS('color', 'rgb(255, 77, 79)');
+  await expect(adsLibrary.inactiveAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_INACTIVE);
 
   // ── Archived: grey ────────────────────────────────────────────────────────────
   await adsLibrary.selectStatus('Archived Ads');
   await adsLibrary.waitForFilter();
   await expect(adsLibrary.archivedAdBadges.first()).toBeVisible();
-  await expect(adsLibrary.archivedAdBadges.first()).toHaveCSS('color', 'rgb(140, 140, 140)');
+  await expect(adsLibrary.archivedAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_ARCHIVED);
 });
 
 
@@ -110,10 +96,8 @@ test('Ad card active badge - days shown in badge matches (today − launch date 
   const launchDate = await adsLibrary.getFirstAdLaunchDate();
 
   // Get the active badge text from the first card (e.g. "Active 3d")
-  const firstCard = adsLibrary.adCardList.locator('[data-index="0"]');
-  const badgeText  = await firstCard
-    .locator('span').filter({ hasText: /^Active/ }).first()
-    .innerText();
+  const firstCard = adsLibrary.getAdRow(0);
+  const badgeText = await adsLibrary.cardActiveBadge(firstCard).innerText();
 
   const match = badgeText.match(/(\d+)d/);
   expect(match, `Badge "${badgeText}" should contain "Xd" (e.g. "Active 3d")`).not.toBeNull();

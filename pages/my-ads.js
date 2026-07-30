@@ -4,7 +4,22 @@ export class MyAds {
   constructor(page) {
     this.page = page;
 
+    // ── DOM/framework details the specs assert against ────────────────────────
+    // Ant Design disabled-state classes for the filter controls
+    this.DISABLED_SELECT_CLASS = /ant-select-disabled/;
+    this.DISABLED_PICKER_CLASS = /ant-picker-disabled/;
+
+
     this.adsLibraryContent = this.page.locator('div[id="single-spa-application:@gokwik/kwikads"]');
+    // Page-level loading spinner inside the Creative Agent shell
+    this.pageSpinner       = this.adsLibraryContent.locator("span[aria-label='loading']").first();
+    // Ant Design renders select dropdowns in a body-level portal and keeps closed ones
+    // in the DOM with display:none — this picks the one that is actually open.
+    this.openSelectDropdown = this.page.locator('.ant-select-dropdown')
+      .filter({ hasNot: this.page.locator('[style*="display: none"]') })
+      .last();
+    this.openDropdownOptions        = this.openSelectDropdown.locator('.ant-select-item-option');
+    this.openDropdownOptionContents = this.openSelectDropdown.locator('.ant-select-item-option-content');
     this.filtersDiv= this.adsLibraryContent.locator('div[style="border-radius: 14px; border: 1px solid rgb(226, 232, 240); background-color: rgb(255, 255, 255); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px; position: sticky; top: 0px; z-index: 1;"]').nth(0)
 
     // Top nav tab (Creative Agent → My Ads)
@@ -77,9 +92,21 @@ export class MyAds {
     // Sync KAAI confirm modal (Ant Design confirm dialog)
     this.syncKaaiModal          = this.page.locator('.ant-modal-confirm').filter({ hasText: 'Sync KAAI' });
     this.syncKaaiModalSyncBtn   = this.syncKaaiModal.locator('button.ant-btn-primary');
+    // Same button once the sync request is in flight (Ant adds ant-btn-loading)
+    this.syncKaaiModalLoadingBtn = this.syncKaaiModal.locator('button.ant-btn-primary.ant-btn-loading');
     this.syncKaaiModalCancelBtn = this.syncKaaiModal.locator('button.ant-btn-default');
     // Tooltip shown on hover over the sync button
     this.syncKaaiTooltip        = this.page.locator('.ant-tooltip-inner').filter({ hasText: 'Sync KAAI' });
+  }
+
+  // A specific option inside the currently-open select dropdown, matched by label
+  openDropdownOptionByText(label) {
+    return this.openSelectDropdown.locator('.ant-select-item-option-content', { hasText: label });
+  }
+
+  // Scrolls the My Ads grid to the bottom to trigger the next page of results
+  async scrollGridToBottom() {
+    await this.scroller.evaluate(el => el.scrollTo({ top: el.scrollHeight, behavior: 'instant' }));
   }
 
   async navigate() {

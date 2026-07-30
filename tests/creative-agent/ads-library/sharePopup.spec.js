@@ -30,9 +30,9 @@ test('Share popup - default state, generate link, and link is readonly', async (
   // ── Default state ─────────────────────────────────────────────────────────
   await expect(adsLibrary.sharePopup).toContainText('Share Creative');
   await expect(adsLibrary.sharePopup).toContainText('Generate a shareable link for this ad');
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
-  await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+  await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
   await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
   await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
   await expect(adsLibrary.shareLinkInput).not.toBeVisible();
@@ -68,21 +68,21 @@ test('Share popup - checkbox interactions and Regenerate button enable/disable',
   await adsLibrary.openCardSharePopup(0, 'first');
 
   // ── Uncheck KAAI → 0 options checked → button disabled ───────────────────
-  await adsLibrary.shareKaaiCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
-  await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await adsLibrary.toggleShareKaaiCheckbox();
+  await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
   await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
   // ── Re-check KAAI → button enabled ───────────────────────────────────────
-  await adsLibrary.shareKaaiCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await adsLibrary.toggleShareKaaiCheckbox();
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
   await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
 
   // ── Also check UGC + Prompts → generate with all 3 ───────────────────────
-  await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
-  await adsLibrary.sharePromptsCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-  await expect(adsLibrary.shareUgcCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-  await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await adsLibrary.toggleShareUgcCheckbox();
+  await adsLibrary.toggleSharePromptsCheckbox();
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+  await expect(adsLibrary.shareUgcCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+  await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
 
   await adsLibrary.generateShareLink();
   expect(await adsLibrary.getGeneratedShareLink()).toMatch(/^https?:\/\/.+/);
@@ -91,7 +91,7 @@ test('Share popup - checkbox interactions and Regenerate button enable/disable',
   await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
   await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-  await adsLibrary.shareUgcCheckbox.locator('.ant-checkbox-inner').evaluate(el => el.click());
+  await adsLibrary.toggleShareUgcCheckbox();
   await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
 
   await adsLibrary.closeSharePopup();
@@ -112,8 +112,8 @@ test('Share popup - generated link persists on reopen; different ad has no carry
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
   await expect(adsLibrary.shareLinkInput).not.toBeVisible();
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
-  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
   await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
   await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
   await adsLibrary.closeSharePopup();
@@ -124,7 +124,7 @@ test('Share popup - generated link persists on reopen; different ad has no carry
   await adsLibrary.openCardSharePopup(0, 'first');
   await expect(adsLibrary.shareLinkInput).toBeVisible();
   expect(await adsLibrary.getGeneratedShareLink()).toBe(savedLink);
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(/ant-checkbox-wrapper-checked/);
+  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
   await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
   await expect(adsLibrary.shareActionBtn).toBeDisabled();
   await adsLibrary.closeSharePopup();
