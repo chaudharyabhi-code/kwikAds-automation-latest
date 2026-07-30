@@ -59,7 +59,7 @@ test('Card 3-dot menu - Save to Collection opens the collection selection modal'
   await expect(adsLibrary.saveToCollectionModal).toContainText('Save to Collection');
 
   // Select the first collection and verify the modal closes (= success)
-  await adsLibrary.saveToCollectionModal.locator('[style*="cursor: pointer"]').first().click();
+  await adsLibrary.saveToCollectionRows.first().click();
   await expect(adsLibrary.saveToCollectionModal).not.toBeVisible();
 });
 
@@ -94,8 +94,7 @@ test('Card 3-dot menu - opening a second card menu closes the first one automati
   await adsLibrary.openNthCardMenu(1);
 
   // Only one dropdown should be visible — the first must have closed automatically
-  const openMenus = page.locator('.ant-dropdown:not(.ant-dropdown-hidden)');
-  await expect(openMenus).toHaveCount(1);
+  await expect(adsLibrary.openCardDropdowns).toHaveCount(1);
 });
 
 // ─── Test 6: 3-dot menu closes on page scroll ────────────────────────────────
