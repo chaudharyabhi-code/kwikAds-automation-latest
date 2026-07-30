@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { Collections } from '../../../pages/collections';
 
-test('Search - valid match filters grid to show only matching collections', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
+let collections;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  collections = new Collections(page);
+  await collections.navigate();
+});
+
+test('Search - valid match filters grid to show only matching collections', async () => {
   // Read the name of the first user-created card dynamically so the test doesn't depend on a hardcoded name
   const firstCardName = (await collections.getCardName(1).innerText()).trim();
 
@@ -20,11 +25,7 @@ test('Search - valid match filters grid to show only matching collections', asyn
   await expect(collections.savedAdsCard).not.toBeVisible();
 });
 
-test('Search - no match shows "No collections matching" message and no cards', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('Search - no match shows "No collections matching" message and no cards', async () => {
   const query = 'zzz_no_match_xyz_123';
   await collections.search(query);
 
@@ -36,11 +37,7 @@ test('Search - no match shows "No collections matching" message and no cards', a
   expect(renderedCount).toBe(0);
 });
 
-test('Search - "Saved Ads" is included in search results like any other collection', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('Search - "Saved Ads" is included in search results like any other collection', async () => {
   await collections.search('Saved Ads');
 
   await expect(collections.savedAdsCard).toBeVisible();

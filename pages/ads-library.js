@@ -5,7 +5,7 @@ export class AdsLibrary {
     this.page = page;
     this.adsLibraryContent       = this.page.locator('div[id="single-spa-application:@gokwik/kwikads"]');
     this.adsLibraryTab           = this.adsLibraryContent.locator('button').filter({ hasText: 'Ad Library' });
-    this.searchInputBox          = this.adsLibraryContent.locator('input[placeholder="Search ads by Library ID, copy, brand name, layout attributes.."]');
+    this.searchInputBox          = this.adsLibraryContent.locator('input[placeholder="Search ads by Library ID, copy, brand name, layout attributes..."]');
     this.searchClearBtn          = this.adsLibraryContent.locator('button[aria-label="Clear search"]');
     this.brandNameFilter         = this.adsLibraryContent.locator('label').filter({ hasText: 'Brand Name' }).locator('..').locator('.ant-select');
     this.adFormatFilter          = this.adsLibraryContent.locator('label').filter({ hasText: 'Ad Format' }).locator('..').locator('.ant-select');
@@ -73,6 +73,14 @@ this.archivedAdBadges = this.adsLibraryContent
     this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
     this.cardDropdownMenu           = this.page.locator('.ant-dropdown').filter({ hasText: 'View Meta Ad Link' });
     this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
+    // Individual menu items. Each <li> carries data-menu-id="rc-menu-uuid-<random>-1-<key>";
+    // the uuid changes per render but the trailing key is stable, so match on the suffix.
+    this.cardMenuShareCreative      = this.cardDropdownMenu.locator('li[data-menu-id$="-share"]');
+    this.cardMenuDownloadCreative   = this.cardDropdownMenu.locator('li[data-menu-id$="-download"]');
+    this.cardMenuViewMetaAdLink     = this.cardDropdownMenu.locator('li[data-menu-id$="-meta-link"]');
+    this.cardMenuSaveToCollection   = this.cardDropdownMenu.locator('li[data-menu-id$="-save-to-collection"]');
+    this.cardMenuCopyLibraryId      = this.cardDropdownMenu.locator('li[data-menu-id$="-copy-id"]');
+    this.cardMenuTagCompetitor      = this.cardDropdownMenu.locator('li[data-menu-id$="-competitor"]');
     // Any currently-open (not hidden) card dropdown — used to assert only one menu is open at a time
     this.openCardDropdowns          = this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)');
     // Card detail modal (opens by clicking a card or the KAAI Analysis button)
@@ -80,11 +88,26 @@ this.archivedAdBadges = this.adsLibraryContent
     // Span whose text content is "Library ID: 1394977966061986 [copy icon]"
     this.cardDetailLibraryIdEl = this.cardDetailModal.locator('span').filter({ hasText: /^Library ID:/ }).first();
     this.cardDetailCloseBtn    = this.cardDetailModal.locator('button[aria-label="Close"]');
+    // Header meta shown above the tabs
+    this.cardDetailLivePlatformBadge = this.cardDetailModal.getByText('Live Platform Ad');
+    this.cardDetailActivePeriod      = this.cardDetailModal.getByText('ACTIVE PERIOD');
+    this.cardDetailFormats           = this.cardDetailModal.getByText('FORMATS');
+    this.cardDetailLiveChannels      = this.cardDetailModal.getByText('LIVE CHANNELS');
+    // In-modal tabs
+    this.cardDetailKaaiTab           = this.cardDetailModal.getByText('KAAI Analysis', { exact: true });
+    this.cardDetailAdCopyTab         = this.cardDetailModal.getByText('Ad Copy Details', { exact: true });
+    // In-modal footer action buttons
+    this.cardDetailSaveToCollectionBtn = this.cardDetailModal.locator('button').filter({ hasText: 'Save to Collection' });
+    this.cardDetailRequestCreativeBtn  = this.cardDetailModal.locator('button').filter({ hasText: 'Request Creative' });
+    this.cardDetailCompetitorBtn       = this.cardDetailModal.locator('button').filter({ hasText: /(Tag|Remove) Competitor/ });
+
     // KAAI Analysis state inside the modal
     // Spinner visible while AI is processing (not-analysed card)
     this.kaaiModalLoader       = this.cardDetailModal.locator('span[aria-label="loading"]');
-    // h3 visible only after analysis has completed
-    this.kaaiModalContent      = this.cardDetailModal.locator('h3').filter({ hasText: 'KAAI Creative Analysis' });
+    // Ant spin wrapper — aria-busy="true" while analysis is running
+    this.kaaiModalSpinner      = this.cardDetailModal.locator('.ant-spin-spinning');
+    // Caption rendered next to the spinner while the AI call is in flight
+    this.kaaiModalAnalyzingText = this.cardDetailModal.getByText(/Analyzing creative with AI/i);
     // Top navigation tabs
     this.myAdsTab                  = this.adsLibraryContent.locator('button').filter({ hasText: /^My Ads$/ });
     this.competitorsTab            = this.adsLibraryContent.locator('button').filter({ hasText: /^Competitors$/ });
@@ -288,7 +311,18 @@ this.archivedAdBadges = this.adsLibraryContent
 
   async closeCardDetail() {
     await this.cardDetailCloseBtn.click();
-    await this.cardDetailModal.waitFor({ state: 'hidden' });
+    // Ant Design exit animation can stall the hide — fall back to Escape
+    await this.cardDetailModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(async () => {
+      await this.page.keyboard.press('Escape');
+      await this.cardDetailModal.waitFor({ state: 'hidden' });
+    });
+  }
+
+  // Waits for an in-flight KAAI analysis to finish: the spinner and the
+  // "Analyzing creative with AI..." caption both disappear.
+  async waitForKaaiAnalysisToFinish(timeout = 60000) {
+    await this.kaaiModalLoader.waitFor({ state: 'hidden', timeout });
+    await this.kaaiModalAnalyzingText.waitFor({ state: 'hidden', timeout }).catch(() => {});
   }
 
   // Clicks the KAAI Analysis button on the first card and waits for the modal to open.

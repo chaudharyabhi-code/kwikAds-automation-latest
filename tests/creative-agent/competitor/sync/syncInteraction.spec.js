@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { Competitor } from '../../../../pages/competitor';
 
-test('Sync in progress - View Ads button still works and navigates to Ad Library', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
+let competitor;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
+test('Sync in progress - View Ads button still works and navigates to Ad Library', async () => {
   // Trigger sync on the first card
   await competitor.syncCompetitor(0);
   await expect(competitor.syncPopover).toBeVisible();
@@ -18,11 +23,7 @@ test('Sync in progress - View Ads button still works and navigates to Ad Library
   await expect(competitor.adLibraryGrid).toBeVisible({ timeout: 15000 });
 });
 
-test('Sync in progress - Delete button still works and opens confirmation modal', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
-
+test('Sync in progress - Delete button still works and opens confirmation modal', async () => {
   // Trigger sync on the first card
   await competitor.syncCompetitor(0);
   await expect(competitor.syncPopover).toBeVisible();

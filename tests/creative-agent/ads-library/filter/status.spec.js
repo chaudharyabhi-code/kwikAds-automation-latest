@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
-// ─── Test 1: Count cross-verification ────────────────────────────────────────
-test('ALL STATUS filter - Active + Inactive + Archived count = Total count', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Count cross-verification ────────────────────────────────────────
+test('ALL STATUS filter - Active + Inactive + Archived count = Total count', async ({ page }) => {
   const totalCount    = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectStatus('Active Ads');
@@ -30,11 +35,6 @@ test('ALL STATUS filter - Active + Inactive + Archived count = Total count', asy
 
 // ─── Test 2: Active Ads ───────────────────────────────────────────────────────
 test('ALL STATUS filter - Active Ads shows only Active badges, no Inactive or Archived', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.selectStatus('Active Ads');
   await page.waitForTimeout(2000);
 
@@ -50,11 +50,6 @@ test('ALL STATUS filter - Active Ads shows only Active badges, no Inactive or Ar
 
 // ─── Test 3: Inactive Ads ─────────────────────────────────────────────────────
 test('ALL STATUS filter - Inactive Ads shows only Inactive badges, no Active or Archived', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.selectStatus('Inactive Ads');
   await page.waitForTimeout(2000);
 
@@ -70,11 +65,6 @@ test('ALL STATUS filter - Inactive Ads shows only Inactive badges, no Active or 
 
 // ─── Test 4: Archived Ads ─────────────────────────────────────────────────────
 test('ALL STATUS filter - Archived Ads shows only Archived badges, no Active or Inactive', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.selectStatus('Archived Ads');
   await page.waitForTimeout(2000);
 
@@ -89,12 +79,7 @@ test('ALL STATUS filter - Archived Ads shows only Archived badges, no Active or 
 });
 
 // ─── Test 5: All Ads resets filter ───────────────────────────────────────────
-test('ALL STATUS filter - All Ads resets filter and restores total count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('ALL STATUS filter - All Ads resets filter and restores total count', async () => {
   const totalCount = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectStatus('Active Ads');

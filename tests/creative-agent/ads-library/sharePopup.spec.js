@@ -2,6 +2,15 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
+});
+
 // Each test targets a specific ad via Library ID search (env vars SHARE_LIBRARY_ID_1–4).
 // Searching by ID isolates the exact ad to row 0, first card — no dependency on
 // grid position or scroll. Tests run in parallel; no serial state.
@@ -14,10 +23,6 @@ import { AdsLibrary } from '../../../pages/ads-library';
 // (first run only for the "no link" assertions; subsequent runs re-generate).
 
 test('Share popup - default state, generate link, and link is readonly', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-
   await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_1);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
@@ -57,11 +62,7 @@ test('Share popup - default state, generate link, and link is readonly', async (
   await adsLibrary.closeSharePopup();
 });
 
-test('Share popup - checkbox interactions and Regenerate button enable/disable', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-
+test('Share popup - checkbox interactions and Regenerate button enable/disable', async () => {
   await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_2);
   await adsLibrary.waitForFilter();
   await adsLibrary.openCardSharePopup(0, 'first');
@@ -96,11 +97,7 @@ test('Share popup - checkbox interactions and Regenerate button enable/disable',
   await adsLibrary.closeSharePopup();
 });
 
-test('Share popup - generated link persists on reopen; different ad has no carryover', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-
+test('Share popup - generated link persists on reopen; different ad has no carryover', async () => {
   // ── Generate on Ad 3 ─────────────────────────────────────────────────────
   await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_3);
   await adsLibrary.waitForFilter();

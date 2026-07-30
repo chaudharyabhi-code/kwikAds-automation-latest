@@ -7,14 +7,18 @@ import { Collections } from '../../../pages/collections';
 const USER_CARD = 1;
 
 test.describe.serial('Collection detail view — Remove from Collection (destructive)', () => {
+  let collections;
   let adCountAtStart = 0;
 
-  test('Confirming "Remove from Collection" removes the ad and decrements the count by 1', async ({ page }) => {
+  // Shared setup: log in, open the Collections tab, open the target collection.
+  test.beforeEach(async ({ page }) => {
     await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
+    collections = new Collections(page);
     await collections.navigate();
     await collections.openCollection(USER_CARD);
+  });
 
+  test('Confirming "Remove from Collection" removes the ad and decrements the count by 1', async () => {
     adCountAtStart = await collections.getDetailAdCount();
     if (adCountAtStart === 0) test.skip(true, 'Collection has no ads — nothing to remove');
 

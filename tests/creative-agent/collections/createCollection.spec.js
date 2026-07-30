@@ -7,13 +7,16 @@ const NAME_AND_DESC = 'playwright-test-with-desc';
 
 // All tests in this block create collections — serial ensures cleanup runs last.
 test.describe.serial('Create new collection', () => {
+  let collections;
 
-
-  test('Description field is optional - create with board name only succeeds', async ({ page }) => {
+  // Shared setup: log in and land on the Collections tab.
+  test.beforeEach(async ({ page }) => {
     await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
+    collections = new Collections(page);
     await collections.navigate();
+  });
 
+  test('Description field is optional - create with board name only succeeds', async () => {
     const countBefore = await collections.getCollectionCount();
 
     await collections.openNewCollectionModal();
@@ -26,11 +29,7 @@ test.describe.serial('Create new collection', () => {
     expect(countAfter).toBe(countBefore + 1);
   });
 
-  test('Create with board name and description - card appears with "by you" attribution and today\'s date', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
-    await collections.navigate();
-
+  test('Create with board name and description - card appears with "by you" attribution and today\'s date', async () => {
     const countBefore = await collections.getCollectionCount();
 
     await collections.openNewCollectionModal();
@@ -47,11 +46,7 @@ test.describe.serial('Create new collection', () => {
     await expect(newCard.locator('div[title]')).toContainText('by you');
   });
 
-  test('Duplicate collection name - shows error toast "A collection with this name already exists" and modal stays open', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
-    await collections.navigate();
-
+  test('Duplicate collection name - shows error toast "A collection with this name already exists" and modal stays open', async () => {
     const countBefore = await collections.getCollectionCount();
 
     await collections.openNewCollectionModal();
@@ -67,4 +62,21 @@ test.describe.serial('Create new collection', () => {
     expect(countAfter).toBe(countBefore);
   });
 
+  // Remove the collections created above so re-runs start from a clean slate
+  // (otherwise the duplicate-name test would fail on the second run).
+  test.afterAll(async ({ browser }) => {
+    const ctx  = await browser.newContext({ storageState: '.auth/user.json' });
+    const page = await ctx.newPage();
+    try {
+      await new KwiksAdsCreativeAgent(page).goto();
+      const c = new Collections(page);
+      await c.navigate();
+      for (const name of [NAME_ONLY, NAME_AND_DESC]) {
+        // may not exist if its creating test failed — ignore
+        await c.deleteCollectionByName(name).catch(() => {});
+      }
+    } finally {
+      await ctx.close();
+    }
+  });
 });

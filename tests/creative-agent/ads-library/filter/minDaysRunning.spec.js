@@ -2,24 +2,24 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
-// ─── Test 1: Input type enforces numeric-only input ──────────────────────────
-test('Min Days Running - input type is number, which enforces rejection of alphabets', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Input type enforces numeric-only input ──────────────────────────
+test('Min Days Running - input type is number, which enforces rejection of alphabets', async () => {
   // type="number" is the browser-level enforcement that silently rejects alphabets
   await expect(adsLibrary.minDaysRunningInput).toHaveAttribute('type', 'number');
 });
 
 // ─── Test 2: Negative numbers should be rejected (currently a bug — negatives are accepted) ───
-test('Min Days Running - negative number is rejected, value should not go below 0', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Min Days Running - negative number is rejected, value should not go below 0', async () => {
   // Use pressSequentially to simulate real key presses (fill() throws on type=number for non-integers)
   await adsLibrary.minDaysRunningInput.click();
   await adsLibrary.minDaysRunningInput.pressSequentially('-10');
@@ -34,11 +34,6 @@ test('Min Days Running - negative number is rejected, value should not go below 
 
 // ─── Test 3: Extremely large number shows empty state, no crash ───────────────
 test('Min Days Running - entering 99999 shows empty state gracefully, no crash', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.minDaysRunningInput.pressSequentially('99999');
   await adsLibrary.minDaysRunningInput.press('Enter');
   await adsLibrary.waitForFilter();
@@ -49,12 +44,7 @@ test('Min Days Running - entering 99999 shows empty state gracefully, no crash',
 });
 
 // ─── Test 4: Valid number is accepted ─────────────────────────────────────────
-test('Min Days Running - valid number is accepted and filters results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Min Days Running - valid number is accepted and filters results', async () => {
   const totalCount = await adsLibrary.getResultsCount();
 
   await adsLibrary.minDaysRunningInput.pressSequentially('30');
@@ -68,12 +58,7 @@ test('Min Days Running - valid number is accepted and filters results', async ({
 });
 
 // ─── Test 5: Clearing the field restores all ads ──────────────────────────────
-test('Min Days Running - clearing the field restores all ads', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Min Days Running - clearing the field restores all ads', async () => {
   const totalCount = await adsLibrary.getResultsCount();
 
   // Apply a filter first so there is something to clear
@@ -93,12 +78,7 @@ test('Min Days Running - clearing the field restores all ads', async ({ page }) 
 });
 
 // ─── Test 6: Decimal input is rejected — only natural numbers accepted ─────────
-test('Min Days Running - decimal value is rejected, field stays integer-only', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Min Days Running - decimal value is rejected, field stays integer-only', async () => {
   await adsLibrary.minDaysRunningInput.click();
   await adsLibrary.minDaysRunningInput.pressSequentially('30.5');
 
@@ -110,12 +90,7 @@ expect(Number.isInteger(Number(value))).toBe(true);
 
 
 // ─── Test 7: Entering 0 returns all ads or shows validation ──────────────────
-test('Min Days Running - entering 0 returns all ads or shows validation, no crash', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Min Days Running - entering 0 returns all ads or shows validation, no crash', async () => {
   const totalCount = await adsLibrary.getResultsCount();
 
   await adsLibrary.minDaysRunningInput.pressSequentially('0');

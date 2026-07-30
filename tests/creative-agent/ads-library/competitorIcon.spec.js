@@ -11,15 +11,21 @@ import { AdsLibrary } from '../../../pages/ads-library';
 //   Test 4 — click remove icon → confirm remove → verify gone from Competitors page
 
 test.describe.serial('Competitor Icon', () => {
+  let adsLibrary;
+  // Brand name of row 0 / first card — the single subject of every test below
+  let brandName;
+
+  // Shared setup: log in, land on Ad Library, and capture the brand under test.
+  test.beforeEach(async ({ page }) => {
+    await new KwiksAdsCreativeAgent(page).goto();
+    adsLibrary = new AdsLibrary(page);
+    await adsLibrary.navigateToAdsLibrary();
+    brandName = await adsLibrary.getFirstCardBrandName();
+  });
 
   // ─── Test 1 ───────────────────────────────────────────────────────────────
   // Brand is NOT a competitor at the start of the suite.
-  test('clicking competitor icon on non-saved brand shows success toast', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    const brandName = await adsLibrary.getFirstCardBrandName();
+  test('clicking competitor icon on non-saved brand shows success toast', async () => {
     await adsLibrary.clickTagCompetitorBtn(0, 'first');
 
     await expect(adsLibrary.successToast).toBeVisible();
@@ -28,12 +34,7 @@ test.describe.serial('Competitor Icon', () => {
 
   // ─── Test 2 ───────────────────────────────────────────────────────────────
   // Brand is now a saved competitor from Test 1.
-  test('saved competitor appears on Competitors page after adding', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    const brandName = await adsLibrary.getFirstCardBrandName();
+  test('saved competitor appears on Competitors page after adding', async () => {
     await adsLibrary.navigateToCompetitors();
 
     await adsLibrary.searchCompetitor(brandName);
@@ -44,12 +45,7 @@ test.describe.serial('Competitor Icon', () => {
 
   // ─── Test 3 ───────────────────────────────────────────────────────────────
   // Brand is still a saved competitor. Click remove → verify modal → cancel.
-  test('clicking competitor icon on saved brand opens Remove Competitor modal', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    const brandName = await adsLibrary.getFirstCardBrandName();
+  test('clicking competitor icon on saved brand opens Remove Competitor modal', async () => {
     await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
 
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
@@ -66,11 +62,6 @@ test.describe.serial('Competitor Icon', () => {
   // ─── Test 4 ───────────────────────────────────────────────────────────────
   // Brand is still a saved competitor. Press Escape → modal closes, brand stays.
   test('pressing Escape on Remove Competitor modal closes it without removing the brand', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    const brandName = await adsLibrary.getFirstCardBrandName();
     await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
 
@@ -86,12 +77,7 @@ test.describe.serial('Competitor Icon', () => {
 
   // ─── Test 5 ───────────────────────────────────────────────────────────────
   // Brand is still a saved competitor. Confirm removal and verify it's gone.
-  test('removed competitor no longer appears on Competitors page', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const adsLibrary = new AdsLibrary(page);
-    await adsLibrary.navigateToAdsLibrary();
-
-    const brandName = await adsLibrary.getFirstCardBrandName();
+  test('removed competitor no longer appears on Competitors page', async () => {
     await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
 

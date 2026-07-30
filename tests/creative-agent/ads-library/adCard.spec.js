@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// ─── Test 1: Every ad card shows all required UI elements ─────────────────────
-test('Ad card structure - each of the first 5 cards shows brand name, badge, date, format label, and action buttons', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Every ad card shows all required UI elements ─────────────────────
+test('Ad card structure - each of the first 5 cards shows brand name, badge, date, format label, and action buttons', async () => {
   const scroller = adsLibrary.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
 
   // 3 rows × 2 cards each = 6 cards checked (≥ 5 required)
@@ -73,12 +78,7 @@ test('Ad card structure - each of the first 5 cards shows brand name, badge, dat
 //   Active   → rgb(82, 196, 26)   green
 //   Inactive → rgb(255, 77, 79)   red
 //   Archived → rgb(140, 140, 140) grey
-test('Ad card badge - Active is green, Inactive is red, Archived is grey', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Ad card badge - Active is green, Inactive is red, Archived is grey', async () => {
   // ── Active: green ─────────────────────────────────────────────────────────────
   await adsLibrary.selectStatus('Active Ads');
   await adsLibrary.waitForFilter();
@@ -101,12 +101,7 @@ test('Ad card badge - Active is green, Inactive is red, Archived is grey', async
 
 // ─── Test 3: Active badge days count matches calculation ──────────────────────
 // Formula confirmed by team: Today - Card launch date - 1 = days shown in badge
-test('Ad card active badge - days shown in badge matches (today − launch date − 1)', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Ad card active badge - days shown in badge matches (today − launch date − 1)', async () => {
   // Filter to Active Ads only so the first card is guaranteed to have an active badge
   await adsLibrary.selectStatus('Active Ads');
   await adsLibrary.waitForFilter();

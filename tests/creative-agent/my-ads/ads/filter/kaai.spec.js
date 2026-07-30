@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../../pages/kwikads';
 import { MyAds } from '../../../../../pages/my-ads';
 
+let myAds;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
 // ─── Test 1: KAAI Analysed filter count matches popover Analyzed value ────────
 test('My Ads - KAAI filter: KAAI Analysed filter count matches Analyzed count in KAAI coverage popover', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   // Read ground-truth Analyzed count from the popover
   await myAds.openKaaiCoveragePopover();
   const { analyzed } = await myAds.getKaaiCoverageStats();
@@ -29,10 +34,6 @@ test('My Ads - KAAI filter: KAAI Analysed filter count matches Analyzed count in
 
 // ─── Test 2: Not Analysed filter count matches popover Pending value ──────────
 test('My Ads - KAAI filter: Not Analysed filter count matches Pending count in KAAI coverage popover', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   // Read ground-truth Pending count from the popover
   await myAds.openKaaiCoveragePopover();
   const { pending } = await myAds.getKaaiCoverageStats();
@@ -53,11 +54,7 @@ test('My Ads - KAAI filter: Not Analysed filter count matches Pending count in K
 });
 
 // ─── Test 3: All = KAAI Analysed + Not Analysed ───────────────────────────────
-test('My Ads - KAAI filter: All count equals KAAI Analysed count plus Not Analysed count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - KAAI filter: All count equals KAAI Analysed count plus Not Analysed count', async () => {
   const { total: allCount } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.selectKaaiOption('KAAI Analysed');

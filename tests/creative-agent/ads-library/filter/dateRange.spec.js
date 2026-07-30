@@ -2,6 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  adsLibrary = new AdsLibrary(page);
+  await adsLibrary.navigateToAdsLibrary();
+  await page.waitForLoadState('networkidle');
+});
+
 const DATE_FROM = process.env.LAUNCH_DATE_FROM;
 const DATE_TO   = process.env.LAUNCH_DATE_TO;
 
@@ -9,12 +19,7 @@ const DATE_TO   = process.env.LAUNCH_DATE_TO;
 const toMidnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 // ─── Test 1: Date range returns ads within range ──────────────────────────────
-test('Launch Date filter - first ad in ASC order is not before start date, first ad in DESC order is not after end date', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Launch Date filter - first ad in ASC order is not before start date, first ad in DESC order is not after end date', async () => {
   await adsLibrary.setDateRange(DATE_FROM, DATE_TO);
 
   // ── Run both sorts and collect dates first ──
@@ -43,11 +48,6 @@ test('Launch Date filter - first ad in ASC order is not before start date, first
 
 // ─── Test 2: Future date is disabled in the calendar picker ──────────────────
 test('Launch Date filter - future dates are disabled in the date picker', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   // Open the date range picker
   await adsLibrary.launchDateRangePicker.click();
   await page.waitForSelector('.ant-picker-dropdown', { state: 'visible' });

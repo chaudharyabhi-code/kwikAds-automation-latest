@@ -2,15 +2,20 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { MyAds } from '../../../../pages/my-ads';
 
+let myAds;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
 const KNOWN_NAME   = process.env.SEARCHABLE_CREATIVE_NAME;
 const UNKNOWN_NAME = process.env.UNKNOWN_NAME;
 
 // ─── Test 1: Search by creative name returns matching ads ─────────────────────
-test('My Ads - searching by creative name returns only matching ad cards', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - searching by creative name returns only matching ad cards', async () => {
   const { total: totalBefore } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.searchFor(KNOWN_NAME);
@@ -33,11 +38,7 @@ test('My Ads - searching by creative name returns only matching ad cards', async
 });
 
 // ─── Test 2: Search by Ad ID returns exactly one ad; ID verified in modal ─────
-test('My Ads - searching by Ad ID returns exactly one ad and modal shows correct ID', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - searching by Ad ID returns exactly one ad and modal shows correct ID', async () => {
   // Dynamically read the Ad ID from the first card so no hardcoding is needed
   const adId = await myAds.getAdIdFromFirstCard();
   expect(adId).not.toBeNull();
@@ -62,11 +63,7 @@ test('My Ads - searching by Ad ID returns exactly one ad and modal shows correct
 });
 
 // ─── Test 3: Search triggers on pressing Enter key ────────────────────────────
-test('My Ads - search triggers on pressing Enter and returns correct results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - search triggers on pressing Enter and returns correct results', async () => {
   // Type without clicking any button — Enter alone must trigger search
   await myAds.searchInput.fill(KNOWN_NAME);
   await myAds.searchInput.press('Enter');
@@ -82,11 +79,7 @@ test('My Ads - search triggers on pressing Enter and returns correct results', a
 });
 
 // ─── Test 4: Searching with non-existent name shows empty state ───────────────
-test('My Ads - searching non-existent name shows empty state with zero count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - searching non-existent name shows empty state with zero count', async () => {
   await myAds.searchFor(UNKNOWN_NAME);
 
   // Count must be 0
@@ -103,11 +96,7 @@ test('My Ads - searching non-existent name shows empty state with zero count', a
 });
 
 // ─── Test 5: Clearing search restores full results ────────────────────────────
-test('My Ads - clearing search input restores full results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - clearing search input restores full results', async () => {
   const { total: totalBefore } = await myAds.getResultsLoadedAndTotal();
 
   // Perform a search to filter results
@@ -130,10 +119,6 @@ test('My Ads - clearing search input restores full results', async ({ page }) =>
 
 // ─── Test 6: Searching with spaces only returns all ads ───────────────────────
 test('My Ads - searching with spaces only returns all ads without crashing', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   const { total: totalBefore } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.searchFor('   ');
@@ -158,10 +143,6 @@ test('My Ads - searching with spaces only returns all ads without crashing', asy
 
 // ─── Test 7: Searching with special characters returns empty state gracefully ──
 test('My Ads - searching with special characters returns empty state without crashing', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   await myAds.searchFor('@#$%^&*');
 
   // Must not crash — page remains stable

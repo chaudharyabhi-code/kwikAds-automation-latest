@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { Collections } from '../../../pages/collections';
 
-test('New Collection modal opens with title, board name input, description textarea, Cancel and Create buttons', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
+let collections;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  collections = new Collections(page);
+  await collections.navigate();
+});
+
+test('New Collection modal opens with title, board name input, description textarea, Cancel and Create buttons', async () => {
   await collections.openNewCollectionModal();
 
   await expect(collections.createCollectionModal).toBeVisible();
@@ -18,22 +23,14 @@ test('New Collection modal opens with title, board name input, description texta
   await expect(collections.boardNameCounter).toContainText('0/50');
 });
 
-test('"Create" button is disabled when board name field is empty', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('"Create" button is disabled when board name field is empty', async () => {
   await collections.openNewCollectionModal();
 
   await expect(collections.boardNameInput).toHaveValue('');
   await expect(collections.createCollectionCreateBtn).toBeDisabled();
 });
 
-test('"Create" button becomes enabled once a valid board name is entered', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('"Create" button becomes enabled once a valid board name is entered', async () => {
   await collections.openNewCollectionModal();
 
   await expect(collections.createCollectionCreateBtn).toBeDisabled();
@@ -43,11 +40,7 @@ test('"Create" button becomes enabled once a valid board name is entered', async
   await expect(collections.createCollectionCreateBtn).toBeEnabled();
 });
 
-test('Board name character limit is enforced at 50 characters', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('Board name character limit is enforced at 50 characters', async () => {
   await collections.openNewCollectionModal();
 
   const over50 = 'A'.repeat(60);
@@ -59,11 +52,7 @@ test('Board name character limit is enforced at 50 characters', async ({ page })
   expect(actualValue.length).toBe(50);
 });
 
-test('Cancel button closes the modal without creating a collection', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('Cancel button closes the modal without creating a collection', async () => {
   const countBefore = await collections.getCollectionCount();
 
   await collections.openNewCollectionModal();

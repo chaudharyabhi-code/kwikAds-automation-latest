@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// ─── Test 1: Clicking Select enters selection mode ────────────────────────────
-test('Select mode - clicking Select button shows Add to Collection, KAAI %, and Cancel in toolbar', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Clicking Select enters selection mode ────────────────────────────
+test('Select mode - clicking Select button shows Add to Collection, KAAI %, and Cancel in toolbar', async () => {
   await adsLibrary.enterSelectMode();
 
   // Toolbar changes: Cancel, Add to Collection, KAAI % all appear
@@ -21,12 +26,7 @@ test('Select mode - clicking Select button shows Add to Collection, KAAI %, and 
 });
 
 // ─── Test 2: Selecting a card updates the count ───────────────────────────────
-test('Select mode - clicking an ad card shows "1 selected" in the count text', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Select mode - clicking an ad card shows "1 selected" in the count text', async () => {
   await adsLibrary.enterSelectMode();
   await adsLibrary.selectFirstAdCard();
 
@@ -37,12 +37,7 @@ test('Select mode - clicking an ad card shows "1 selected" in the count text', a
 });
 
 // ─── Test 3: Selecting multiple cards shows correct count ─────────────────────
-test('Select mode - selecting 3 ad cards shows "3 selected" in the count text', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Select mode - selecting 3 ad cards shows "3 selected" in the count text', async () => {
   await adsLibrary.enterSelectMode();
   
   const countText = await adsLibrary.selectAdCards(3);
@@ -52,12 +47,7 @@ test('Select mode - selecting 3 ad cards shows "3 selected" in the count text', 
 });
 
 // ─── Test 4: Cancel exits selection mode ─────────────────────────────────────
-test('Select mode - clicking Cancel exits selection mode and restores Select button', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Select mode - clicking Cancel exits selection mode and restores Select button', async () => {
   await adsLibrary.enterSelectMode();
   await adsLibrary.exitSelectMode();
 
@@ -68,12 +58,7 @@ test('Select mode - clicking Cancel exits selection mode and restores Select but
 });
 
 // ─── Test 5: Add to Collection disabled when no cards selected ────────────────
-test('Select mode - Add to Collection button is disabled when no cards are selected', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Select mode - Add to Collection button is disabled when no cards are selected', async () => {
   await adsLibrary.enterSelectMode();
 
   // No cards selected — button must be disabled (confirmed via DevTools: disabled attribute present)
@@ -81,12 +66,7 @@ test('Select mode - Add to Collection button is disabled when no cards are selec
 });
 
 // ─── Test 6: Deselecting a card decrements the count ─────────────────────────
-test('Select mode - clicking a selected card deselects it and decrements count to 2', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Select mode - clicking a selected card deselects it and decrements count to 2', async () => {
   await adsLibrary.enterSelectMode();
   await adsLibrary.selectAdCards(3);
 
@@ -115,11 +95,6 @@ test('Select mode - clicking a selected card deselects it and decrements count t
 //   4. Select the collection in the modal → navigate back to it
 //   5. Assert count increased by exactly 2
 test('Add to Collection - saves 2 selected ads and collection count increases by 2', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   // ── Step 1: Record the actual ad count inside the first collection ──────────
   await adsLibrary.navigateToCollections();
   await adsLibrary.openFirstCollectionCard();

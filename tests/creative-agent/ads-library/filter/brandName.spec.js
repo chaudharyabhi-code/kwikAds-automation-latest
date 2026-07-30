@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
-test('Brand Name filter - selecting first brand filters results correctly', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+test('Brand Name filter - selecting first brand filters results correctly', async ({ page }) => {
   await adsLibrary.brandNameFilter.click();
   await adsLibrary.brandDropdownOptions.first().waitFor({ state: 'visible' });
 
@@ -24,11 +29,6 @@ test('Brand Name filter - selecting first brand filters results correctly', asyn
 });
 
 test('Brand Name filter - multi-select 3 brands shows combined count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.brandNameFilter.click();
   await adsLibrary.brandDropdownOptions.first().waitFor({ state: 'visible' });
 
@@ -49,24 +49,14 @@ test('Brand Name filter - multi-select 3 brands shows combined count', async ({ 
   expect(actualCount).toBe(expectedTotal);
 });
 
-test('Brand Name filter - searching non-existent brand shows empty list', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Brand Name filter - searching non-existent brand shows empty list', async () => {
   await adsLibrary.searchBrandDropdown('xyznonexistentbrand123');
 
   await expect(adsLibrary.brandDropdownNoData).toBeVisible();
   await expect(adsLibrary.brandDropdownOptions).toHaveCount(0);
 });
 
-test('Brand Name filter - dropdown ad count matches actual filtered results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Brand Name filter - dropdown ad count matches actual filtered results', async () => {
   await adsLibrary.brandNameFilter.click();
   await adsLibrary.brandDropdownOptions.first().waitFor({ state: 'visible' });
 
@@ -83,12 +73,7 @@ test('Brand Name filter - dropdown ad count matches actual filtered results', as
   expect(actualCount).toBe(expectedCount);
 });
 
-test('Brand Name filter - deselecting all selected brands restores full results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Brand Name filter - deselecting all selected brands restores full results', async () => {
   const totalBefore = await adsLibrary.getResultsCount();
 
   // Select 2 brands
@@ -115,12 +100,7 @@ test('Brand Name filter - deselecting all selected brands restores full results'
   await expect(adsLibrary.brandNameFilter.locator('.ant-select-selection-placeholder')).toBeVisible();
 });
 
-test('Brand Name filter - selecting all visible brands does not crash the page', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Brand Name filter - selecting all visible brands does not crash the page', async () => {
   await adsLibrary.brandNameFilter.click();
   await adsLibrary.brandDropdownOptions.first().waitFor({ state: 'visible' });
 

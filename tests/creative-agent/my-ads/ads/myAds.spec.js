@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { MyAds } from '../../../../pages/my-ads';
 
-// ─── Test 1: All elements visible on My Ads page load ─────────────────────────
-test('My Ads - page loads with all required UI elements visible', async ({ page }) => {
+let myAds;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
+  myAds = new MyAds(page);
   await myAds.navigate();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: All elements visible on My Ads page load ─────────────────────────
+test('My Ads - page loads with all required UI elements visible', async () => {
   // Main tabs — Ads and Performance must both be visible; Ads is active by default
   await expect(myAds.adsTab).toBeVisible();
   await expect(myAds.performanceTab).toBeVisible();
@@ -46,11 +51,6 @@ test('My Ads - page loads with all required UI elements visible', async ({ page 
 
 // ─── Test 2: Results count shows loaded and total correctly ───────────────────
 test('My Ads - results count shows 30 loaded initially and correct total', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-  await page.waitForLoadState('networkidle');
-
   const { loaded, total } = await myAds.getResultsLoadedAndTotal();
 
   console.log(`My Ads initial count: ${loaded} of ${total} ads`);
@@ -68,12 +68,7 @@ test('My Ads - results count shows 30 loaded initially and correct total', async
 });
 
 // ─── Test 3: Scrolling loads more ad cards beyond the initial 30 ──────────────
-test('My Ads - scrolling down loads more ad cards beyond initial 30', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-  await page.waitForLoadState('networkidle');
-
+test('My Ads - scrolling down loads more ad cards beyond initial 30', async () => {
   const { loaded: initialLoaded, total } = await myAds.getResultsLoadedAndTotal();
   expect(initialLoaded).toBe(30);
 
@@ -98,11 +93,6 @@ test('My Ads - scrolling down loads more ad cards beyond initial 30', async ({ p
 
 // ─── Test 4: Total count unchanged, loaded count increases after scroll ────────
 test('My Ads - total ad count stays the same while loaded count grows on scroll', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-  await page.waitForLoadState('networkidle');
-
   const { loaded: loadedBefore, total: totalBefore } = await myAds.getResultsLoadedAndTotal();
 
   if (totalBefore <= 30) {
