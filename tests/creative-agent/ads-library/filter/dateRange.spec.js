@@ -53,11 +53,11 @@ test('Launch Date filter - future dates are disabled in the date picker', async 
   await page.waitForSelector('.ant-picker-dropdown', { state: 'visible' });
 
   // A future date cell in the Ant Design calendar carries the class "ant-picker-cell-disabled"
-  const futureDateCell = page.locator('.ant-picker-dropdown .ant-picker-cell-disabled').first();
+  const futureDateCell = adsLibrary.datePickerDisabledCells.first();
 
   await expect(futureDateCell).toBeVisible();
 
   // Clicking a disabled cell must NOT close the picker (picker remains open)
   await futureDateCell.click({ force: true });
-  await expect(page.locator('.ant-picker-dropdown')).toBeVisible();
+  await expect(adsLibrary.datePickerDropdown).toBeVisible();
 });

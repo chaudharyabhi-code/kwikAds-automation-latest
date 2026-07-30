@@ -12,6 +12,9 @@ export class AdsLibrary {
     this.allStatusFilter         = this.adsLibraryContent.locator('label').filter({ hasText: 'All Status' }).locator('..').locator('.ant-select');
     this.kaaiAnalysisFilter      = this.adsLibraryContent.locator('label').filter({ hasText: 'Kaai Analysis' }).locator('..').locator('.ant-select');
     this.launchDateRangePicker   = this.adsLibraryContent.locator('.ant-picker-range');
+    // Ant Design calendar dropdown (rendered at body level) and its disabled (future) date cells
+    this.datePickerDropdown      = this.page.locator('.ant-picker-dropdown');
+    this.datePickerDisabledCells = this.datePickerDropdown.locator('.ant-picker-cell-disabled');
     this.sortMetricsBy           = this.adsLibraryContent.locator('label').filter({ hasText: 'Sort Metrics By' }).locator('..').locator('.ant-select');
     this.minDaysRunningInput     = this.adsLibraryContent.locator('input[type="number"]');
     this.orderDescButton         = this.adsLibraryContent.locator('button').filter({ hasText: 'Desc' });
@@ -64,10 +67,14 @@ this.archivedAdBadges = this.adsLibraryContent
     this.collectionBackButton       = this.adsLibraryContent.locator('button.ant-btn-icon-only').first();
     // "Save to Collection" modal opened from the Add to Collection toolbar button
     this.saveToCollectionModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Save to Collection' });
+    // Clickable collection rows inside the Save to Collection modal
+    this.saveToCollectionRows       = this.saveToCollectionModal.locator('[style*="cursor: pointer"]');
     // 3-dot (kebab) menu on the first ad card
     this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
     this.cardDropdownMenu           = this.page.locator('.ant-dropdown').filter({ hasText: 'View Meta Ad Link' });
     this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
+    // Any currently-open (not hidden) card dropdown — used to assert only one menu is open at a time
+    this.openCardDropdowns          = this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)');
     // Card detail modal (opens by clicking a card or the KAAI Analysis button)
     this.cardDetailModal      = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'KAAI Analysis' });
     // Span whose text content is "Library ID: 1394977966061986 [copy icon]"
@@ -114,7 +121,12 @@ this.archivedAdBadges = this.adsLibraryContent
 
   async navigateToAdsLibrary() {
     await this.adsLibraryContent.waitFor({ state: 'visible' });
-    await this.adsLibraryTab.click({ force: true });
+    // Real (non-force) click: waits for the tab to be visible AND unobscured.
+    // If an overlay (KYC modal, chat bubble, sticky header) is covering it,
+    // this throws a clear "intercepts pointer events" error instead of
+    // silently clicking the overlay and doing nothing.
+    await this.adsLibraryTab.waitFor({ state: 'visible', timeout: 15000 });
+    await this.adsLibraryTab.click();
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});

@@ -10,6 +10,9 @@ export class KwiksAdsCreativeAgent {
     this.merchantSearchInput  = this.merchantDialog.locator('input[type="text"]');
     this.merchantRadioFirst   = this.merchantDialog.locator('ul').locator('input[type="radio"]').nth(0);
     this.setMerchantButton    = this.merchantDialog.locator('button[type="button"]').filter({ hasText: 'Set Merchant' });
+    // "Start Your Payments KYC" promo modal — appears intermittently after selecting a merchant
+    this.kycModal             = this.page.locator('div.fixed.inset-0').filter({ hasText: 'Start Your Payments KYC' });
+    this.kycModalRemindLater  = this.kycModal.locator('button').filter({ hasText: 'Remind me later' });
   }
 
   async goto() {
@@ -52,8 +55,23 @@ export class KwiksAdsCreativeAgent {
     }
 
     await this.selectMerchant();
+    // The "Start Your Payments KYC" promo modal sometimes pops up right after
+    // selecting a merchant — dismiss it if present so it doesn't block navigation.
+    await this.dismissKycModalIfPresent();
     await this.navigateToCreativeAgent();
     await this.page.waitForLoadState('networkidle');
+  }
+
+  // Closes the intermittent "Start Your Payments KYC" promo modal.
+  // No-op when the modal does not appear (it shows only sometimes).
+  async dismissKycModalIfPresent() {
+    try {
+      await this.kycModalRemindLater.waitFor({ state: 'visible', timeout: 3000 });
+      await this.kycModalRemindLater.click();
+      await this.kycModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    } catch {
+      // Modal never appeared — nothing to dismiss
+    }
   }
 
   // Selects MERCHANT_ID from the dashboard merchant switcher.
@@ -77,6 +95,7 @@ export class KwiksAdsCreativeAgent {
   async navigateToCreativeAgent() {
     await this.kwidAdsSideBar.click();
     await this.createAgent.click();
+    await this.page.waitForLoadState('networkidle');
   }
 }
 

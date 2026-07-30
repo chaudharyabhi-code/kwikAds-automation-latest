@@ -5,6 +5,21 @@ import { AdsLibrary } from '../../../pages/ads-library';
 // Active tab = blue text + blue bottom border (rgb(0, 75, 141))
 const ACTIVE_COLOR = 'rgb(0, 75, 141)';
 
+// ─── Test 0: Creative Agent lands on the AI Assistant tab by default ──────────
+test('Tab navigation - Creative Agent opens on the AI Assistant tab by default', async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  const adsLibrary = new AdsLibrary(page);
+  // No explicit tab navigation — assert the default landing state
+  await page.waitForLoadState('networkidle');
+
+  // AI Assistant is the active tab (blue text); the others are neutral
+  await expect(adsLibrary.aiAssistantTab).toHaveCSS('color', ACTIVE_COLOR);
+  await expect(adsLibrary.adsLibraryTab).not.toHaveCSS('color', ACTIVE_COLOR);
+  await expect(adsLibrary.myAdsTab).not.toHaveCSS('color', ACTIVE_COLOR);
+  await expect(adsLibrary.competitorsTab).not.toHaveCSS('color', ACTIVE_COLOR);
+  await expect(adsLibrary.collectionsTab).not.toHaveCSS('color', ACTIVE_COLOR);
+});
+
 // ─── Test 1: All tabs are clickable and navigate to correct content ───────────
 test('Tab navigation - each tab is clickable and loads its content without crash', async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
