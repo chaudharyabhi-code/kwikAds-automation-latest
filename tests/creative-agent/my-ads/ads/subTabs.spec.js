@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { MyAds } from '../../../../pages/my-ads';
 
-// ─── Test 1: All 3 sub-tabs visible and All is active by default ──────────────
-test('My Ads - All 3 sub-tabs are visible and All tab is active by default', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
+let myAds;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
+// ─── Test 1: All 3 sub-tabs visible and All is active by default ──────────────
+test('My Ads - All 3 sub-tabs are visible and All tab is active by default', async () => {
   // All 3 sub-tabs must be visible
   await expect(myAds.subTabAll).toBeVisible();
   await expect(myAds.subTabMeta).toBeVisible();
@@ -22,11 +27,7 @@ test('My Ads - All 3 sub-tabs are visible and All tab is active by default', asy
 });
 
 // ─── Test 2: Meta Creatives sub-tab filters and highlights correctly ───────────
-test('My Ads - clicking Meta Creatives sub-tab shows filtered results with updated count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - clicking Meta Creatives sub-tab shows filtered results with updated count', async () => {
   // Capture total count from All tab before switching
   const { total: allTotal } = await myAds.getResultsLoadedAndTotal();
 
@@ -48,11 +49,7 @@ test('My Ads - clicking Meta Creatives sub-tab shows filtered results with updat
 });
 
 // ─── Test 3: Draft Creatives sub-tab shows filtered results or empty state ─────
-test('My Ads - clicking Draft Creatives sub-tab shows only draft ads or empty state', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - clicking Draft Creatives sub-tab shows only draft ads or empty state', async () => {
   // Click Draft Creatives sub-tab
   await myAds.clickSubTab(myAds.subTabDraft);
 
@@ -79,11 +76,7 @@ test('My Ads - clicking Draft Creatives sub-tab shows only draft ads or empty st
 
 
 // ─── Test 4: All count = Meta Creatives count + Draft Creatives count ──────────
-test('My Ads - All sub-tab count equals Meta Creatives count plus Draft Creatives count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - All sub-tab count equals Meta Creatives count plus Draft Creatives count', async () => {
   const { total: allTotal } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.clickSubTab(myAds.subTabMeta);
@@ -98,11 +91,7 @@ test('My Ads - All sub-tab count equals Meta Creatives count plus Draft Creative
 });
 
 // ─── Test 5: Draft Creatives disables Status, launch date, min days filters ─────
-test('My Ads - Draft Creatives tab disables Status, launch date, and min days running filters', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Draft Creatives tab disables Status, launch date, and min days running filters', async () => {
   // On All tab — the three filters must be interactive (not disabled)
   await expect(myAds.statusFilter).not.toHaveClass(/ant-select-disabled/);
   await expect(myAds.launchDateRange).not.toHaveClass(/ant-picker-disabled/);
@@ -124,10 +113,6 @@ test('My Ads - Draft Creatives tab disables Status, launch date, and min days ru
 
 // ─── Test 6: Draft Creatives Sort By dropdown shows only "Recently Added" ───────
 test('My Ads - Draft Creatives Sort By dropdown shows only Recently Added option', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   // Switch to Draft Creatives
   await myAds.clickSubTab(myAds.subTabDraft);
   await expect(myAds.activeSubTab).toContainText('Draft Creatives');
@@ -155,11 +140,7 @@ test('My Ads - Draft Creatives Sort By dropdown shows only Recently Added option
 });
 
 // ─── Test 7: Draft Creatives empty state shows correct message with zero count ───
-test('My Ads - Draft Creatives empty state shows correct message when no drafts exist', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Draft Creatives empty state shows correct message when no drafts exist', async () => {
   // Switch to Draft Creatives
   await myAds.clickSubTab(myAds.subTabDraft);
   await expect(myAds.activeSubTab).toContainText('Draft Creatives');

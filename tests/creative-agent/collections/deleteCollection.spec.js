@@ -7,11 +7,16 @@ const USER_CARD = 1;
 // Disposable collection created just for the confirm+search tests
 const DELETE_TEST_NAME = 'playwright-to-delete';
 
-test('Delete icon on a custom collection triggers the Delete Collection confirmation modal', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
+let collections;
 
+// File-level shared setup — also applies to tests inside the describe block below.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  collections = new Collections(page);
+  await collections.navigate();
+});
+
+test('Delete icon on a custom collection triggers the Delete Collection confirmation modal', async () => {
   const collectionName = (await collections.getCardName(USER_CARD).innerText()).trim();
 
   await collections.getCardDeleteButton(USER_CARD).click();
@@ -27,11 +32,7 @@ test('Delete icon on a custom collection triggers the Delete Collection confirma
   await collections.deleteCancelBtn.click();
 });
 
-test('Cancel on the Delete Collection modal closes it and leaves the collection in the grid', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const collections = new Collections(page);
-  await collections.navigate();
-
+test('Cancel on the Delete Collection modal closes it and leaves the collection in the grid', async () => {
   const countBefore = await collections.getCollectionCount();
 
   await collections.getCardDeleteButton(USER_CARD).click();
@@ -51,11 +52,7 @@ test('Cancel on the Delete Collection modal closes it and leaves the collection 
 test.describe.serial('Delete collection — confirm and search', () => {
   let deletedName = '';
 
-  test('Confirming delete removes the collection from the grid and decrements the badge count', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
-    await collections.navigate();
-
+  test('Confirming delete removes the collection from the grid and decrements the badge count', async () => {
     // Create a disposable collection so no real user data is touched
     await collections.openNewCollectionModal();
     await collections.createCollection(DELETE_TEST_NAME);
@@ -74,12 +71,8 @@ test.describe.serial('Delete collection — confirm and search', () => {
     await expect(deletedCard).not.toBeVisible();
   });
 
-  test('Searching for a deleted collection name shows the empty search state', async ({ page }) => {
+  test('Searching for a deleted collection name shows the empty search state', async () => {
     if (!deletedName) test.skip(true, 'Previous test did not delete a collection');
-
-    await new KwiksAdsCreativeAgent(page).goto();
-    const collections = new Collections(page);
-    await collections.navigate();
 
     await collections.search(deletedName);
 

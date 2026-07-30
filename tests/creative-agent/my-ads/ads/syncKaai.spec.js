@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { MyAds } from '../../../../pages/my-ads';
 
-// ─── Test 1: Hovering sync icon shows "Sync KAAI" tooltip ────────────────────
-test('My Ads - Sync KAAI: hovering over refresh icon shows Sync KAAI tooltip', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
+let myAds;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
+// ─── Test 1: Hovering sync icon shows "Sync KAAI" tooltip ────────────────────
+test('My Ads - Sync KAAI: hovering over refresh icon shows Sync KAAI tooltip', async () => {
   await myAds.syncButton.hover();
 
   await expect(myAds.syncKaaiTooltip).toBeVisible({ timeout: 5000 });
@@ -15,11 +20,7 @@ test('My Ads - Sync KAAI: hovering over refresh icon shows Sync KAAI tooltip', a
 });
 
 // ─── Test 2: Clicking sync opens confirm modal with correct content ───────────
-test('My Ads - Sync KAAI: clicking refresh icon opens Sync KAAI confirmation modal', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Sync KAAI: clicking refresh icon opens Sync KAAI confirmation modal', async () => {
   await myAds.openSyncKaaiModal();
 
   await expect(myAds.syncKaaiModal).toContainText('Sync KAAI');
@@ -30,10 +31,6 @@ test('My Ads - Sync KAAI: clicking refresh icon opens Sync KAAI confirmation mod
 
 // ─── Test 3: Clicking Cancel closes the modal without triggering sync ─────────
 test('My Ads - Sync KAAI: clicking Cancel closes the modal without triggering sync', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   // Track whether op6 (KAAI sync API) is called
   let syncApiCalled = false;
   page.on('request', (req) => {
@@ -51,10 +48,6 @@ test('My Ads - Sync KAAI: clicking Cancel closes the modal without triggering sy
 
 // ─── Test 4: Confirming sync shows loading state and triggers the API ─────────
 test('My Ads - Sync KAAI: clicking Sync button shows loading state and triggers KAAI sync API', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
   // Intercept the sync API call (op6 operation) — 502 is a backend issue, not UI
   const syncRequestPromise = page.waitForRequest(
     (req) => {

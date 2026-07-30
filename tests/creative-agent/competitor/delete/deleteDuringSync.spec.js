@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { Competitor } from '../../../../pages/competitor';
 
-test('Delete during sync - delete flow works while sync is in progress and stops sync gracefully', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
+let competitor;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
+test('Delete during sync - delete flow works while sync is in progress and stops sync gracefully', async () => {
   const countBefore = await competitor.getSavedCount();
 
   // Step 1: Trigger sync on card 0 and confirm it is in progress

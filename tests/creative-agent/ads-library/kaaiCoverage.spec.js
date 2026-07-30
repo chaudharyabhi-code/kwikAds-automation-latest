@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// ─── Test 1: KAAI % button opens popover with correct sections ────────────────
-test('KAAI Coverage - clicking KAAI % button opens popover with Analyzed, Pending, Total', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: KAAI % button opens popover with correct sections ────────────────
+test('KAAI Coverage - clicking KAAI % button opens popover with Analyzed, Pending, Total', async () => {
   await adsLibrary.openKaaiCoveragePopover();
 
   await expect(adsLibrary.kaaiCoveragePopover).toContainText('KAAI Coverage');
@@ -19,12 +24,7 @@ test('KAAI Coverage - clicking KAAI % button opens popover with Analyzed, Pendin
 });
 
 // ─── Test 2: Analyzed + Pending = Total ───────────────────────────────────────
-test('KAAI Coverage - Analyzed + Pending equals Total in popover', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('KAAI Coverage - Analyzed + Pending equals Total in popover', async () => {
   await adsLibrary.openKaaiCoveragePopover();
   const { analyzed, pending, total } = await adsLibrary.getKaaiCoverageStats();
 
@@ -33,12 +33,7 @@ test('KAAI Coverage - Analyzed + Pending equals Total in popover', async ({ page
 });
 
 // ─── Test 3: % on button = round(Analyzed / Total * 100) ─────────────────────
-test('KAAI Coverage - percentage on button matches Analyzed / Total ratio', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('KAAI Coverage - percentage on button matches Analyzed / Total ratio', async () => {
   await adsLibrary.openKaaiCoveragePopover();
   const { analyzed, total, percentage } = await adsLibrary.getKaaiCoverageStats();
 
@@ -49,11 +44,6 @@ test('KAAI Coverage - percentage on button matches Analyzed / Total ratio', asyn
 
 // ─── Test 4: Popover values are global — unchanged after applying a filter ────
 test('KAAI Coverage - popover values stay the same after applying Status filter', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.openKaaiCoveragePopover();
   const statsBefore = await adsLibrary.getKaaiCoverageStats();
   // Close popover by pressing Escape
@@ -71,12 +61,7 @@ test('KAAI Coverage - popover values stay the same after applying Status filter'
 });
 
 // ─── Test 5: Clicking outside closes the popover ─────────────────────────────
-test('KAAI Coverage - clicking outside the popover closes it', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('KAAI Coverage - clicking outside the popover closes it', async () => {
   await adsLibrary.openKaaiCoveragePopover();
   await expect(adsLibrary.kaaiCoveragePopover).toBeVisible();
 
@@ -88,11 +73,6 @@ test('KAAI Coverage - clicking outside the popover closes it', async ({ page }) 
 
 // ─── Test 6: Cross-check KAAI Analysis filter counts against popover values ───
 test('KAAI Coverage - KAAI Analysed filter count = Analyzed; Not Analysed count = Pending', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   // Get ground-truth counts from the popover
   await adsLibrary.openKaaiCoveragePopover();
   const { analyzed, pending } = await adsLibrary.getKaaiCoverageStats();

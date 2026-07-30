@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../../pages/kwikads';
 import { MyAds } from '../../../../../pages/my-ads';
 
-// ─── Test 1: Active filter shows only Active badges, zero Paused/Archived ────────
-test('My Ads - Status filter: selecting Active shows only Active badges and zero Paused or Archived badges', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
+let myAds;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
+// ─── Test 1: Active filter shows only Active badges, zero Paused/Archived ────────
+test('My Ads - Status filter: selecting Active shows only Active badges and zero Paused or Archived badges', async () => {
   await myAds.selectStatus('Active');
 
   const activeBadges   = await myAds.activeAdBadges.count();
@@ -21,11 +26,7 @@ test('My Ads - Status filter: selecting Active shows only Active badges and zero
 });
 
 // ─── Test 2: Paused filter shows only Paused badges, zero Active/Archived ─────────
-test('My Ads - Status filter: selecting Paused shows only Paused badges and zero Active or Archived badges', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Status filter: selecting Paused shows only Paused badges and zero Active or Archived badges', async () => {
   await myAds.selectStatus('Paused');
 
   const pausedBadges   = await myAds.pausedAdBadges.count();
@@ -39,11 +40,7 @@ test('My Ads - Status filter: selecting Paused shows only Paused badges and zero
 });
 
 // ─── Test 3: Archived filter shows only Archived badges, zero Active/Paused ───────
-test('My Ads - Status filter: selecting Archived shows only Archived badges and zero Active or Paused badges', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Status filter: selecting Archived shows only Archived badges and zero Active or Paused badges', async () => {
   await myAds.selectStatus('Archived');
 
   const archivedBadges = await myAds.archivedAdBadges.count();
@@ -57,11 +54,7 @@ test('My Ads - Status filter: selecting Archived shows only Archived badges and 
 });
 
 // ─── Test 4: All count = Active count + Paused count + Archived count ────────────
-test('My Ads - Status filter: All count equals Active count plus Paused count plus Archived count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - Status filter: All count equals Active count plus Paused count plus Archived count', async () => {
   const { total: allCount } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.selectStatus('Active');

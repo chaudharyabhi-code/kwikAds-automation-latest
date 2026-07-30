@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-test('Search Ad by Library ID', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+test('Search Ad by Library ID', async ({ page }) => {
   await adsLibrary.searchAd(process.env.SEARCHABLE_LIBRARY_ID);
   await page.waitForLoadState('networkidle');
 
@@ -15,11 +20,6 @@ test('Search Ad by Library ID', async ({ page }) => {
 });
 
 test('Search with non-existent term returns empty state', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   await adsLibrary.searchAd('xyzabc123nonexistent');
   await page.waitForLoadState('networkidle');
 
@@ -28,10 +28,6 @@ test('Search with non-existent term returns empty state', async ({ page }) => {
 });
 
 test('Search with 200+ character string does not break page', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
   const longQuery  = 'a'.repeat(210);
 
   await adsLibrary.searchAd(longQuery);
@@ -42,12 +38,7 @@ test('Search with 200+ character string does not break page', async ({ page }) =
   await expect(adsLibrary.emptyState).toHaveText('No ads found matching your search');
 });
 
-test('pressing Enter in search bar triggers search without clicking the search icon', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('pressing Enter in search bar triggers search without clicking the search icon', async () => {
   const totalBefore = await adsLibrary.getResultsCount();
   const brandName = await adsLibrary.getFirstCardBrandName();
 
@@ -62,11 +53,6 @@ test('pressing Enter in search bar triggers search without clicking the search i
 });
 
 test('partial Library ID search returns matching results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
   const partialId = process.env.SEARCHABLE_LIBRARY_ID.slice(0, 6);
   await adsLibrary.searchAd(partialId);
   await page.waitForLoadState('networkidle');
@@ -76,12 +62,7 @@ test('partial Library ID search returns matching results', async ({ page }) => {
   await expect(adsLibrary.resultsCount).toBeVisible();
 });
 
-test('clearing search input restores full unfiltered results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('clearing search input restores full unfiltered results', async () => {
   const totalBefore = await adsLibrary.getResultsCount();
 
   await adsLibrary.searchAd(process.env.SEARCHABLE_LIBRARY_ID);
@@ -95,12 +76,7 @@ test('clearing search input restores full unfiltered results', async ({ page }) 
   expect(totalAfterClear).toBe(totalBefore);
 });
 
-test('numeric-only search returns results or empty state without crash', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('numeric-only search returns results or empty state without crash', async () => {
   await adsLibrary.searchAd('12');
 
   // Wait for either results or empty state to appear — whichever the server returns

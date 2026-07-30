@@ -2,16 +2,21 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { Competitor } from '../../../../pages/competitor';
 
+let competitor;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
 // Card index 1 is used across all tests — must be a non-merged competitor
 // so the standard "Delete Competitor" modal (not "Delete Merged Group") appears
 const CARD_INDEX = 1;
 
 // ─── Test 1: Modal appears ────────────────────────────────────────────────────
-test('Delete competitor - confirmation modal shows brand name and Cancel/Delete buttons', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
-
+test('Delete competitor - confirmation modal shows brand name and Cancel/Delete buttons', async () => {
   const brandName = await competitor.getCardName(CARD_INDEX).innerText();
   await competitor.deleteCompetitor(CARD_INDEX);
 
@@ -22,11 +27,7 @@ test('Delete competitor - confirmation modal shows brand name and Cancel/Delete 
 });
 
 // ─── Test 2: Cancel closes modal, competitor stays ────────────────────────────
-test('Delete competitor - clicking Cancel closes modal and competitor remains in the list', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
-
+test('Delete competitor - clicking Cancel closes modal and competitor remains in the list', async () => {
   const countBefore = await competitor.getSavedCount();
 
   await competitor.deleteCompetitor(CARD_INDEX);
@@ -43,11 +44,7 @@ test('Delete competitor - clicking Cancel closes modal and competitor remains in
 });
 
 // ─── Test 3: Confirm deletes competitor ──────────────────────────────────────
-test('Delete competitor - confirming deletion shows success toast and decrements saved count by 1', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
-
+test('Delete competitor - confirming deletion shows success toast and decrements saved count by 1', async () => {
   const countBefore = await competitor.getSavedCount();
 
   await competitor.deleteCompetitor(CARD_INDEX);

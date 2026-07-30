@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { Competitor } from '../../../../pages/competitor';
 
-test('Deleted competitor - no longer appears in search results', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
+let competitor;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
+test('Deleted competitor - no longer appears in search results', async () => {
   // Record brand name of card 1 (non-merged) before deleting
   const brandName = await competitor.getCardName(1).innerText();
 

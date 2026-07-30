@@ -2,12 +2,17 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../../pages/kwikads';
 import { MyAds } from '../../../../../pages/my-ads';
 
-// ─── Test 1: Video + Image count = Total count ────────────────────────────────
-test('My Ads - AD Format filter: Video count + Image count equals total count', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
+let myAds;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  myAds = new MyAds(page);
+  await myAds.navigate();
+});
+
+// ─── Test 1: Video + Image count = Total count ────────────────────────────────
+test('My Ads - AD Format filter: Video count + Image count equals total count', async () => {
   const { total: totalCount } = await myAds.getResultsLoadedAndTotal();
 
   await myAds.selectAdFormat('Video');
@@ -21,11 +26,7 @@ test('My Ads - AD Format filter: Video count + Image count equals total count', 
 });
 
 // ─── Test 2: Video filter shows only VIDEO cards, zero IMAGE cards ─────────────
-test('My Ads - AD Format filter: selecting Video shows only VIDEO cards and zero IMAGE cards', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - AD Format filter: selecting Video shows only VIDEO cards and zero IMAGE cards', async () => {
   await myAds.selectAdFormat('Video');
 
   const videoLabels = await myAds.adCardVideoLabels.count();
@@ -37,11 +38,7 @@ test('My Ads - AD Format filter: selecting Video shows only VIDEO cards and zero
 });
 
 // ─── Test 3: Image filter shows only IMAGE cards, zero VIDEO cards ─────────────
-test('My Ads - AD Format filter: selecting Image shows only IMAGE cards and zero VIDEO cards', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - AD Format filter: selecting Image shows only IMAGE cards and zero VIDEO cards', async () => {
   await myAds.selectAdFormat('Image');
 
   const imageLabels = await myAds.adCardImageLabels.count();
@@ -53,11 +50,7 @@ test('My Ads - AD Format filter: selecting Image shows only IMAGE cards and zero
 });
 
 // ─── Test 4: All Formats resets filter — count restores, both types visible ────
-test('My Ads - AD Format filter: selecting All Formats restores original count and shows both VIDEO and IMAGE cards', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const myAds = new MyAds(page);
-  await myAds.navigate();
-
+test('My Ads - AD Format filter: selecting All Formats restores original count and shows both VIDEO and IMAGE cards', async () => {
   const { total: totalBefore } = await myAds.getResultsLoadedAndTotal();
 
   // Apply Video filter then reset to All Formats

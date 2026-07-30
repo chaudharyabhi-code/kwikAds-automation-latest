@@ -4,22 +4,23 @@ import { Competitor } from '../../../../pages/competitor';
 
 const MERGED_CARD = 0;
 
-test('Merged group - Sync button triggers sync popover', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
+let competitor;
 
+// File-level shared setup — also applies to tests inside the describe block below.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
+test('Merged group - Sync button triggers sync popover', async () => {
   await competitor.syncCompetitor(MERGED_CARD);
 
   await expect(competitor.syncPopover).toBeVisible();
   await expect(competitor.syncPopover).toContainText(/Starting|Syncing/);
 });
 
-test('Merged group - View Ads navigates to Ad Library with brand filter applied', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
-
+test('Merged group - View Ads navigates to Ad Library with brand filter applied', async () => {
   await competitor.clickViewAds(MERGED_CARD);
 
   await expect(competitor.adLibraryGrid).toBeVisible();
@@ -32,11 +33,7 @@ test('Merged group - View Ads navigates to Ad Library with brand filter applied'
 // confirm permanently removes the merged group card.
 test.describe.serial('Merged group - Delete flow', () => {
 
-  test('Delete opens modal with correct buttons', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const competitor = new Competitor(page);
-    await competitor.navigate();
-
+  test('Delete opens modal with correct buttons', async () => {
     await competitor.deleteCompetitor(MERGED_CARD);
 
     await expect(competitor.removeCompetitorModal).toBeVisible();
@@ -48,11 +45,7 @@ test.describe.serial('Merged group - Delete flow', () => {
   });
 
   // Must be last — permanently deletes the merged group
-  test('Delete confirm - shows success toast and decrements saved count by 1', async ({ page }) => {
-    await new KwiksAdsCreativeAgent(page).goto();
-    const competitor = new Competitor(page);
-    await competitor.navigate();
-
+  test('Delete confirm - shows success toast and decrements saved count by 1', async () => {
     const countBefore = await competitor.getSavedCount();
 
     await competitor.deleteCompetitor(MERGED_CARD);

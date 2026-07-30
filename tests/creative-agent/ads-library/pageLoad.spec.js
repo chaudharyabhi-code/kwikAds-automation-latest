@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// ─── Test 1: Page loads with all filter controls visible ─────────────────────
-test('Ads Library Page Load', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Page loads with all filter controls visible ─────────────────────
+test('Ads Library Page Load', async () => {
   await expect(adsLibrary.searchInputBox).toBeVisible();
   await expect(adsLibrary.brandNameFilter).toBeVisible();
   await expect(adsLibrary.adFormatFilter).toBeVisible();
@@ -23,12 +28,7 @@ test('Ads Library Page Load', async ({ page }) => {
 });
 
 // ─── Test 2: Scroll loads more cards; total Y stays constant, loaded X grows ──
-test('Ads Library - scrolling loads more cards while total count stays unchanged', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('Ads Library - scrolling loads more cards while total count stays unchanged', async () => {
   const { loaded: loadedBefore, total: totalBefore } = await adsLibrary.getResultsLoadedAndTotal();
   console.log(`Before scroll: ${loadedBefore} of ${totalBefore} ads`);
 

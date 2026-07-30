@@ -2,13 +2,19 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  adsLibrary = new AdsLibrary(page);
+});
+
 // Active tab = blue text + blue bottom border (rgb(0, 75, 141))
 const ACTIVE_COLOR = 'rgb(0, 75, 141)';
 
 // ─── Test 0: Creative Agent lands on the AI Assistant tab by default ──────────
 test('Tab navigation - Creative Agent opens on the AI Assistant tab by default', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
   // No explicit tab navigation — assert the default landing state
   await page.waitForLoadState('networkidle');
 
@@ -22,8 +28,6 @@ test('Tab navigation - Creative Agent opens on the AI Assistant tab by default',
 
 // ─── Test 1: All tabs are clickable and navigate to correct content ───────────
 test('Tab navigation - each tab is clickable and loads its content without crash', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
 
@@ -60,8 +64,6 @@ test('Tab navigation - each tab is clickable and loads its content without crash
 
 // ─── Test 2: Only the clicked tab is active; others are not ──────────────────
 test('Tab navigation - only the active tab has the highlighted style; others are neutral', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
 
@@ -76,8 +78,6 @@ test('Tab navigation - only the active tab has the highlighted style; others are
 
 // ─── Test 3: Filters reset to default after navigating away and back ──────────
 test('Tab navigation - filters reset to default state after navigating away and returning', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
 

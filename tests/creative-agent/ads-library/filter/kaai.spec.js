@@ -2,13 +2,18 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
-// ─── Test 1: Count cross-verification ────────────────────────────────────────
-test('KAAI Analysis filter - KAAI Analysed + Not Analysed count = Total count', async ({ page }) => {
+let adsLibrary;
+
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
+  adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
 
+// ─── Test 1: Count cross-verification ────────────────────────────────────────
+test('KAAI Analysis filter - KAAI Analysed + Not Analysed count = Total count', async () => {
   const totalCount       = await adsLibrary.getResultsCount();
 
   await adsLibrary.selectKaaiOption('KAAI Analysed');
@@ -22,12 +27,7 @@ test('KAAI Analysis filter - KAAI Analysed + Not Analysed count = Total count', 
 });
 
 // ─── Test 2: KAAI Analysed — only purple buttons visible ─────────────────────
-test('KAAI Analysis filter - KAAI Analysed shows only purple KAAI buttons, zero white buttons', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('KAAI Analysis filter - KAAI Analysed shows only purple KAAI buttons, zero white buttons', async () => {
   await adsLibrary.selectKaaiOption('KAAI Analysed');
   await adsLibrary.kaaiAnalysedCardButtons.first().waitFor({ state: 'visible' });
 
@@ -40,12 +40,7 @@ test('KAAI Analysis filter - KAAI Analysed shows only purple KAAI buttons, zero 
 });
 
 // ─── Test 3: Not Analysed — zero purple buttons visible ──────────────────────
-test('KAAI Analysis filter - Not Analysed shows only white KAAI buttons, zero purple buttons', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const adsLibrary = new AdsLibrary(page);
-  await adsLibrary.navigateToAdsLibrary();
-  await page.waitForLoadState('networkidle');
-
+test('KAAI Analysis filter - Not Analysed shows only white KAAI buttons, zero purple buttons', async () => {
   await adsLibrary.selectKaaiOption('Not Analysed');
   await adsLibrary.kaaiNotAnalysedCardButtons.first().waitFor({ state: 'visible' });
 

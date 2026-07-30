@@ -2,11 +2,16 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { Competitor } from '../../../../pages/competitor';
 
-test('View Ads - Ad Library filtered result count matches competitor card total ad volume', async ({ page }) => {
-  await new KwiksAdsCreativeAgent(page).goto();
-  const competitor = new Competitor(page);
-  await competitor.navigate();
+let competitor;
 
+// Shared setup: log in, land on the page under test.
+test.beforeEach(async ({ page }) => {
+  await new KwiksAdsCreativeAgent(page).goto();
+  competitor = new Competitor(page);
+  await competitor.navigate();
+});
+
+test('View Ads - Ad Library filtered result count matches competitor card total ad volume', async () => {
   // Read total ad volume from the competitor card before navigating
   const { total: cardTotal } = await competitor.getCardAdVolumeNumbers(0);
   const brandName            = await competitor.getCardName(0).innerText();
