@@ -47,10 +47,10 @@ test('Launch Date filter - first ad in ASC order is not before start date, first
 
 
 // ─── Test 2: Future date is disabled in the calendar picker ──────────────────
-test('Launch Date filter - future dates are disabled in the date picker', async ({ page }) => {
+test('Launch Date filter - future dates are disabled in the date picker', async () => {
   // Open the date range picker
   await adsLibrary.launchDateRangePicker.click();
-  await page.waitForSelector('.ant-picker-dropdown', { state: 'visible' });
+  await adsLibrary.datePickerDropdown.waitFor({ state: 'visible' });
 
   // A future date cell in the Ant Design calendar carries the class "ant-picker-cell-disabled"
   const futureDateCell = adsLibrary.datePickerDisabledCells.first();

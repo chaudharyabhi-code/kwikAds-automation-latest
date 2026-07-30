@@ -93,8 +93,8 @@ test('My Ads - All sub-tab count equals Meta Creatives count plus Draft Creative
 // ─── Test 5: Draft Creatives disables Status, launch date, min days filters ─────
 test('My Ads - Draft Creatives tab disables Status, launch date, and min days running filters', async () => {
   // On All tab — the three filters must be interactive (not disabled)
-  await expect(myAds.statusFilter).not.toHaveClass(/ant-select-disabled/);
-  await expect(myAds.launchDateRange).not.toHaveClass(/ant-picker-disabled/);
+  await expect(myAds.statusFilter).not.toHaveClass(myAds.DISABLED_SELECT_CLASS);
+  await expect(myAds.launchDateRange).not.toHaveClass(myAds.DISABLED_PICKER_CLASS);
   await expect(myAds.minDaysInput).not.toBeDisabled();
 
   // Switch to Draft Creatives
@@ -102,10 +102,10 @@ test('My Ads - Draft Creatives tab disables Status, launch date, and min days ru
   await expect(myAds.activeSubTab).toContainText('Draft Creatives');
 
   // Status filter (Ant Design Select) — disabled class added to wrapper
-  await expect(myAds.statusFilter).toHaveClass(/ant-select-disabled/);
+  await expect(myAds.statusFilter).toHaveClass(myAds.DISABLED_SELECT_CLASS);
 
   // Launch date range (Ant Design RangePicker) — disabled class added to wrapper
-  await expect(myAds.launchDateRange).toHaveClass(/ant-picker-disabled/);
+  await expect(myAds.launchDateRange).toHaveClass(myAds.DISABLED_PICKER_CLASS);
 
   // Min days running (native number input) — HTML disabled attribute set
   await expect(myAds.minDaysInput).toBeDisabled();
@@ -120,19 +120,17 @@ test('My Ads - Draft Creatives Sort By dropdown shows only Recently Added option
   // Open the Sort By dropdown
   await myAds.sortByFilter.click();
 
-  // Ant Design renders dropdown options in a portal at body level — grab the visible one
-  const dropdown = page.locator('.ant-select-dropdown').filter({ hasNot: page.locator('[style*="display: none"]') }).last();
+  // Ant Design renders dropdown options in a portal at body level — the page object
+  // resolves the one that is actually open (closed ones stay in the DOM hidden).
 
   // "Recently Added" must be the only option
-  await expect(dropdown.locator('.ant-select-item-option')).toHaveCount(1);
-  await expect(dropdown.locator('.ant-select-item-option-content')).toContainText('Recently Added');
+  await expect(myAds.openDropdownOptions).toHaveCount(1);
+  await expect(myAds.openDropdownOptionContents).toContainText('Recently Added');
 
   // Performance/engagement options must not be available on Draft tab
   const hiddenOptions = ['Spend', 'Orders', 'CTR', 'Conversion Rate', 'Longest Running'];
   for (const label of hiddenOptions) {
-    await expect(
-      dropdown.locator('.ant-select-item-option-content', { hasText: label })
-    ).toHaveCount(0);
+    await expect(myAds.openDropdownOptionByText(label)).toHaveCount(0);
   }
 
   // Close the dropdown

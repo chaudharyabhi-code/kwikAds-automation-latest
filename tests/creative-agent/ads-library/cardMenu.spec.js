@@ -93,8 +93,7 @@ test('Card 3-dot menu - scrolling the ad grid closes the open menu', async () =>
   await expect(adsLibrary.cardDropdownMenu).toBeVisible();
 
   // Scroll the virtuoso ad grid downward
-  const scroller = adsLibrary.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
-  await scroller.evaluate(el => el.scrollBy({ top: 400, behavior: 'instant' }));
+  await adsLibrary.scrollAdGrid(400);
 
   await expect(adsLibrary.cardDropdownMenu).not.toBeVisible();
 });

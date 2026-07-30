@@ -18,7 +18,7 @@ test('Search - valid match filters grid to show only matching collections', asyn
   await collections.search(firstCardName);
 
   // Matching card is visible
-  const matchingCard = collections.collectionCardsGrid.locator('> div').filter({ hasText: firstCardName });
+  const matchingCard = collections.getCardByName(firstCardName);
   await expect(matchingCard).toBeVisible();
 
   // "Saved Ads" (index 0) is not visible since it doesn't match the search term

@@ -40,7 +40,7 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.searchCompetitor(brandName);
 
     // Exactly one competitor card should match the brand name
-    await expect(adsLibrary.adsLibraryContent.getByText(brandName, { exact: true })).not.toHaveCount(1) && await expect(adsLibrary.adsLibraryContent.getByText(brandName, { exact: true })).not.toHaveCount(0);
+    await expect(adsLibrary.brandNameText(brandName)).not.toHaveCount(1) && await expect(adsLibrary.brandNameText(brandName)).not.toHaveCount(0);
   });
 
   // ─── Test 3 ───────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ test.describe.serial('Competitor Icon', () => {
     // Brand must still be in saved competitors — verify via Competitors page
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
-    await expect(adsLibrary.adsLibraryContent.getByText(brandName, { exact: true })).toBeVisible();
+    await expect(adsLibrary.brandNameText(brandName)).toBeVisible();
   });
 
   // ─── Test 5 ───────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.searchCompetitor(brandName);
 
     // Brand should not appear in results after removal
-    await expect(adsLibrary.adsLibraryContent.getByText(brandName, { exact: true })).toHaveCount(1);
+    await expect(adsLibrary.brandNameText(brandName)).toHaveCount(1);
   });
 
 });

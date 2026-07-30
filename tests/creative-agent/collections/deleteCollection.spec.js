@@ -67,7 +67,7 @@ test.describe.serial('Delete collection — confirm and search', () => {
     expect(countAfter).toBe(countBefore - 1);
 
     // Card is no longer in the grid
-    const deletedCard = collections.collectionCardsGrid.locator('> div').filter({ hasText: deletedName });
+    const deletedCard = collections.getCardByName(deletedName);
     await expect(deletedCard).not.toBeVisible();
   });
 

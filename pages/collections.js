@@ -27,6 +27,11 @@ export class Collections {
     // Success / error toasts
     this.successToast = this.page.locator('.ant-message-notice-success');
     this.errorToast   = this.page.locator('.ant-message-notice-error');
+    // Any toast regardless of severity — for flows where the app may report
+    // either success or an informational "already added" message
+    this.anyToast     = this.page.locator('.ant-message-notice');
+    // Page-level loading spinner inside the Creative Agent shell
+    this.pageSpinner  = this.adsLibraryContent.locator("span[aria-label='loading']").first();
 
     // Delete confirmation modal
     this.deleteModal      = this.page.locator('div[aria-modal="true"].ant-modal-confirm');
@@ -143,6 +148,23 @@ export class Collections {
   // Returns the "by [user]" attribution div on the Nth card
   getCardAttribution(n = 0) {
     return this.collectionCards.nth(n).locator('div[title]');
+  }
+
+  // ── Lookup by collection name (rather than grid index) ───────────────────────
+
+  // Returns the collection card whose text contains `name`
+  getCardByName(name) {
+    return this.collectionCards.filter({ hasText: name });
+  }
+
+  // "by you" / "by user@example.com" attribution on a named card
+  getCardAttributionByName(name) {
+    return this.getCardByName(name).locator('div[title]');
+  }
+
+  // Delete (trash) icon on a named card
+  getCardDeleteButtonByName(name) {
+    return this.getCardByName(name).locator('[aria-label="delete"]');
   }
 
   // Opens the New Collection modal

@@ -3,6 +3,17 @@ import { expect } from '@playwright/test';
 export class AdsLibrary {
   constructor(page) {
     this.page = page;
+
+    // ── DOM/framework details the specs assert against ────────────────────────
+    // Active nav tab is blue text + blue bottom border.
+    this.ACTIVE_TAB_COLOR = 'rgb(0, 75, 141)';
+    // Ant Design adds this class to a checked checkbox wrapper.
+    this.CHECKED_CHECKBOX_CLASS = /ant-checkbox-wrapper-checked/;
+    // Ad-card status badge colours (confirmed in DevTools)
+    this.BADGE_COLOR_ACTIVE   = 'rgb(82, 196, 26)';   // green
+    this.BADGE_COLOR_INACTIVE = 'rgb(255, 77, 79)';   // red
+    this.BADGE_COLOR_ARCHIVED = 'rgb(140, 140, 140)'; // grey
+
     this.adsLibraryContent       = this.page.locator('div[id="single-spa-application:@gokwik/kwikads"]');
     this.adsLibraryTab           = this.adsLibraryContent.locator('button').filter({ hasText: 'Ad Library' });
     this.searchInputBox          = this.adsLibraryContent.locator('input[placeholder="Search ads by Library ID, copy, brand name, layout attributes..."]');
@@ -20,6 +31,9 @@ export class AdsLibrary {
     this.orderDescButton         = this.adsLibraryContent.locator('button').filter({ hasText: 'Desc' });
     this.resultsCount            = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of [\d,]+ ads/ });
     this.emptyState              = this.adsLibraryContent.locator('.ant-empty-description').filter({ hasText: 'No ads found matching your search' });
+    // Selected-tag remove "x" and the empty-state placeholder inside the Brand Name select
+    this.brandFilterRemoveBtn    = this.brandNameFilter.locator('.ant-select-selection-item-remove');
+    this.brandFilterPlaceholder  = this.brandNameFilter.locator('.ant-select-selection-placeholder');
     this.brandDropdownOptions    = this.page.locator('.ant-select-dropdown .ant-select-item-option');
     this.brandDropdownNoData     = this.page.locator('.ant-select-dropdown .ant-empty, .ant-select-dropdown .ant-select-empty').filter({ hasText: 'No data' });
     this.adFormatDropdownOptions = this.page.locator('.ant-select-dropdown .ant-select-item-option');
@@ -50,6 +64,10 @@ this.archivedAdBadges = this.adsLibraryContent
     this.kaaiNotAnalysedCardButtons = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').locator('button[style*="rgba(250, 245, 255, 0.6)"]');
     this.orderAscButton             = this.adsLibraryContent.locator('button').filter({ hasText: 'Asc' });
     this.adCardList                 = this.adsLibraryContent.locator('[data-testid="virtuoso-item-list"]');
+    // Scrollable viewport that wraps the virtualised ad grid
+    this.virtualizedGridScroller    = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
+    // Page-level loading spinner inside the Creative Agent shell
+    this.pageSpinner                = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     // KAAI coverage popover (opens on clicking the "KAAI XX%" button)
     this.kaaiCoverageButton         = this.adsLibraryContent.locator('button').filter({ hasText: /KAAI \d+%/ });
     this.kaaiCoveragePopover        = this.page.locator('.ant-popover').filter({ hasText: 'KAAI Coverage' });
@@ -123,6 +141,8 @@ this.archivedAdBadges = this.adsLibraryContent
     // Breadcrumb
     this.breadcrumbNav              = this.page.locator('nav.ant-breadcrumb');
     this.breadcrumbHomeLink         = this.breadcrumbNav.locator('a[href="/"]');
+    // The house SVG rendered inside the home crumb
+    this.breadcrumbHomeIcon         = this.breadcrumbHomeLink.locator('[aria-label="home"]');
     this.breadcrumbCreativeAgentLink = this.breadcrumbNav.locator('a[href*="/kwikads"]');
     // Share Creative popup (opens from the share icon button on each ad card)
     this.sharePopup            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Share Creative' });
@@ -135,11 +155,85 @@ this.archivedAdBadges = this.adsLibraryContent
     this.shareKaaiCheckbox    = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'KAAI Analysis' });
     this.shareUgcCheckbox     = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'UGC Script' });
     this.sharePromptsCheckbox = this.sharePopup.locator('.ant-checkbox-wrapper').filter({ hasText: 'Prompts' });
+    // Inner box of each checkbox — the element the tests click via evaluate()
+    this.shareKaaiCheckboxInner    = this.shareKaaiCheckbox.locator('.ant-checkbox-inner');
+    this.shareUgcCheckboxInner     = this.shareUgcCheckbox.locator('.ant-checkbox-inner');
+    this.sharePromptsCheckboxInner = this.sharePromptsCheckbox.locator('.ant-checkbox-inner');
     // Primary action button — label is "Generate Link" before gen, "Regenerate Link" after
     this.shareActionBtn        = this.sharePopup.locator('button.ant-btn-primary');
     // Only visible after a link has been generated
     this.shareLinkInput        = this.sharePopup.locator('input[readonly]');
     this.shareCopyBtn          = this.sharePopup.locator('button').filter({ hasText: 'Copy' });
+  }
+
+  // ── Ad card structure (locator factories) ─────────────────────────────────────
+  // The grid is virtualised: each [data-index="N"] is a ROW holding two cards.
+  // These keep every card-level selector here rather than in the specs.
+
+  getAdRow(index = 0) {
+    return this.adCardList.locator(`[data-index="${index}"]`);
+  }
+
+  // The ad cards inside a row. Structural (row > flex wrapper > column) rather than
+  // width-based: the grid has already gone from 2 columns (calc(50%…)) to 3
+  // (calc(33.3333%…)), which silently broke the old width selector.
+  getCardsInRow(index = 0) {
+    return this.getAdRow(index).locator('> div > div');
+  }
+
+  // Semi-transparent white sheet overlaid on each card while in select mode
+  getRowSelectionOverlays(index = 0) {
+    return this.getAdRow(index).locator('div[style*="rgba(255, 255, 255, 0.92)"]');
+  }
+
+  // White card bodies in a row — clicking one toggles its selection in select mode
+  getRowCardBodies(index = 0) {
+    return this.getAdRow(index).locator('div[style*="rgb(255, 255, 255)"]');
+  }
+
+  cardBrandName(card)        { return card.locator('h4').first(); }
+  cardStatusBadge(card)      { return card.locator('span').filter({ hasText: /^(Active|Inactive|Archived)/ }).first(); }
+  cardActiveBadge(card)      { return card.locator('span').filter({ hasText: /^Active/ }).first(); }
+  cardLaunchDate(card)       { return card.locator('span[style*="rgb(100, 116, 139)"]').first(); }
+  cardFormatLabel(card)      { return card.getByText('IMAGE', { exact: true }).or(card.getByText('VIDEO', { exact: true })); }
+  cardKaaiButton(card)       { return card.locator('button').filter({ hasText: /KAAI/i }).first(); }
+  // Buttons that remain directly on the card
+  cardRequestCreativeButton(card) { return card.locator('button[title="Request Creative"]').first(); }
+
+  // NOTE: Share / Download / Tag-Competitor are no longer icon buttons on the card —
+  // they moved into the 3-dot "More options" menu (which grew from 3 to 6 items).
+  // Use cardMenuShareCreative / cardMenuDownloadCreative / cardMenuTagCompetitor
+  // after opening the menu. These three resolve to 0 elements on the current UI and
+  // are kept only so older references keep resolving.
+  cardShareButton(card)      { return card.locator('button[title="Share Creative"]').first(); }
+  cardDownloadButton(card)   { return card.locator('button[title="Download Creative"]').first(); }
+  cardCompetitorButton(card) { return card.locator('button[title="Tag Competitor"], button[title="Remove Competitor"]').first(); }
+  cardMenuTrigger(card)      { return card.locator('button.ant-dropdown-trigger').first(); }
+
+  // Exact brand-name text anywhere in the Creative Agent shell — used to confirm
+  // a brand is (or is no longer) present on the Competitors page.
+  brandNameText(name) {
+    return this.adsLibraryContent.getByText(name, { exact: true });
+  }
+
+  // ── Grid scrolling / checkbox toggling (keep raw DOM APIs out of the specs) ──
+
+  // Scrolls the virtualised ad grid down by `px` so virtuoso renders the next rows
+  async scrollAdGrid(px = 400) {
+    await this.virtualizedGridScroller.evaluate((el, y) => el.scrollBy({ top: y, behavior: 'instant' }), px);
+  }
+
+  // Ant Design's checkbox label swallows normal clicks, so toggle via the inner box
+  async toggleShareKaaiCheckbox() {
+    await this.shareKaaiCheckboxInner.evaluate(el => el.click());
+  }
+
+  async toggleShareUgcCheckbox() {
+    await this.shareUgcCheckboxInner.evaluate(el => el.click());
+  }
+
+  async toggleSharePromptsCheckbox() {
+    await this.sharePromptsCheckboxInner.evaluate(el => el.click());
   }
 
   async navigateToAdsLibrary() {
@@ -384,19 +478,24 @@ this.archivedAdBadges = this.adsLibraryContent
   // ── Share Creative popup ──────────────────────────────────────────────────────
 
   // row 0 = no scroll (default), row 1+ = scroll Virtuoso into view first
+  // Opens the Share Creative popup. "Share Creative" used to be an icon button on the
+  // card; it is now an item inside the card's 3-dot "More options" menu, so we open
+  // that menu first. row 0 = no scroll (default), row 1+ = scroll the row into view.
   async openCardSharePopup(row = 0, side = 'first') {
     if (row > 0) {
-      const scroller = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller');
-      await scroller.evaluate((el, r) => { el.scrollTop = r * 700; }, row);
+      await this.virtualizedGridScroller.evaluate((el, r) => { el.scrollTop = r * 700; }, row);
       await this.page.waitForTimeout(400);
     }
-    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
+    const rowLocator = this.getAdRow(row);
     await rowLocator.waitFor({ state: 'visible' });
-    if (side === 'first') {
-      await rowLocator.locator('button[title="Share Creative"]').first().click();
-    } else {
-      await rowLocator.locator('button[title="Share Creative"]').last().click();
-    }
+
+    const trigger = rowLocator.locator('button.ant-dropdown-trigger');
+    const menuBtn = side === 'first' ? trigger.first() : trigger.last();
+    await menuBtn.scrollIntoViewIfNeeded();
+    await menuBtn.click();
+    await this.cardDropdownMenu.waitFor({ state: 'visible' });
+
+    await this.cardMenuShareCreative.click();
     await this.sharePopup.waitFor({ state: 'visible' });
   }
 

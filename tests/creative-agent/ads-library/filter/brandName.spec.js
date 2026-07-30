@@ -90,14 +90,14 @@ test('Brand Name filter - deselecting all selected brands restores full results'
   expect(await adsLibrary.getResultsCount()).toBeLessThan(totalBefore);
 
   // Deselect via the × tag buttons directly on the select input
-  const removeBtn = adsLibrary.brandNameFilter.locator('.ant-select-selection-item-remove');
+  const removeBtn = adsLibrary.brandFilterRemoveBtn;
   while ((await removeBtn.count()) > 0) {
     await removeBtn.first().click();
     await adsLibrary.waitForFilter();
   }
 
   expect(await adsLibrary.getResultsCount()).toBe(totalBefore);
-  await expect(adsLibrary.brandNameFilter.locator('.ant-select-selection-placeholder')).toBeVisible();
+  await expect(adsLibrary.brandFilterPlaceholder).toBeVisible();
 });
 
 test('Brand Name filter - selecting all visible brands does not crash the page', async () => {

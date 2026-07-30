@@ -25,8 +25,11 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   // Each test opens the discovered collection fresh and enters selection mode.
+  // Calling test.skip() here skips every test in the block when beforeAll found
+  // no suitable collection — so no test needs to repeat that guard.
   test.beforeEach(async ({ page }) => {
-    if (cardIndex === -1) return; // individual tests will call test.skip()
+    test.skip(cardIndex === -1, 'No collection with ads found');
+
     await new KwiksAdsCreativeAgent(page).goto();
     collections = new Collections(page);
     await collections.navigate();
@@ -35,13 +38,10 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('"Remove from Collection" button is disabled when no ads are selected', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
     await expect(collections.detailRemoveFromCollectionBtn).toBeDisabled();
   });
 
   test('Selecting an ad enables "Remove from Collection" and updates the selected count label', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
-
     await collections.selectAdInDetail(0);
 
     await expect(collections.detailRemoveFromCollectionBtn).toBeEnabled();
@@ -49,8 +49,6 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('Multiple ads can be selected simultaneously (requires a collection with 2+ ads)', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
-
     const adCount = await collections.getDetailAdCount();
     if (adCount < 2) test.skip(true, 'Collection has fewer than 2 ads — skipping multi-select test');
 
@@ -63,8 +61,6 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('"Cancel" exits selection mode and restores the "Select" button without changing the ad list', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
-
     const countBefore = await collections.getDetailAdCount();
 
     await collections.detailCancelSelectionBtn.click();
@@ -82,8 +78,6 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('"Remove from Collection" opens a confirmation modal with the collection name and correct ad count', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
-
     const collectionName = (await collections.detailName.innerText()).trim();
     await collections.selectAdInDetail(0);
     await collections.clickRemoveFromCollection();
@@ -97,8 +91,6 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('Cancelling the remove confirmation modal dismisses it and leaves the ad in the collection', async () => {
-    if (cardIndex === -1) test.skip(true, 'No collection with ads found');
-
     const countBefore = await collections.getDetailAdCount();
 
     await collections.selectAdInDetail(0);
