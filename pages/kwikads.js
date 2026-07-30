@@ -11,6 +11,8 @@ export class KwiksAdsCreativeAgent {
     this.merchantRadioFirst   = this.merchantDialog.locator('ul').locator('input[type="radio"]').nth(0);
     this.setMerchantButton    = this.merchantDialog.locator('button[type="button"]').filter({ hasText: 'Set Merchant' });
     // "Start Your Payments KYC" promo modal — appears intermittently after selecting a merchant
+    // Dashboard-level loading spinner (shown while the merchant switch reloads data)
+    this.pageLoader           = this.page.locator('span[aria-label="loading"]').first();
     this.kycModal             = this.page.locator('div.fixed.inset-0').filter({ hasText: 'Start Your Payments KYC' });
     this.kycModalRemindLater  = this.kycModal.locator('button').filter({ hasText: 'Remind me later' });
   }
@@ -54,23 +56,45 @@ export class KwiksAdsCreativeAgent {
       await this.page.waitForLoadState('networkidle');
     }
 
+    // The "Start Your Payments KYC" promo modal appears intermittently and at an
+    // unpredictable moment (a loader runs first, then the modal renders). Register a
+    // locator handler so Playwright auto-dismisses it before ANY later action it would
+    // block — this covers the case where it appears after our explicit check below.
+    await this.registerKycModalHandler();
+
     await this.selectMerchant();
-    // The "Start Your Payments KYC" promo modal sometimes pops up right after
-    // selecting a merchant — dismiss it if present so it doesn't block navigation.
+    // Deterministic pass for the common case: wait out the post-merchant loader, then
+    // dismiss the modal if it rendered.
     await this.dismissKycModalIfPresent();
     await this.navigateToCreativeAgent();
     await this.page.waitForLoadState('networkidle');
   }
 
+  // Auto-dismisses the KYC promo modal whenever it becomes visible and would block an
+  // action. Registered once per page, before the merchant flow.
+  async registerKycModalHandler() {
+    await this.page.addLocatorHandler(this.kycModal, async () => {
+      // The modal may vanish on its own between detection and click — ignore that.
+      await this.kycModalRemindLater.click({ timeout: 5000 }).catch(() => {});
+    }, { times: 5 });
+  }
+
   // Closes the intermittent "Start Your Payments KYC" promo modal.
-  // No-op when the modal does not appear (it shows only sometimes).
+  // Order matters: setting the merchant first triggers a dashboard loader, and the
+  // modal only renders once that finishes — so waiting for the loader before looking
+  // for the modal is what makes this reliable.
   async dismissKycModalIfPresent() {
+    await this.pageLoader.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+    await this.pageLoader.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+    await this.page.waitForLoadState('networkidle').catch(() => {});
+
     try {
-      await this.kycModalRemindLater.waitFor({ state: 'visible', timeout: 3000 });
+      await this.kycModalRemindLater.waitFor({ state: 'visible', timeout: 6000 });
       await this.kycModalRemindLater.click();
       await this.kycModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     } catch {
-      // Modal never appeared — nothing to dismiss
+      // Modal did not appear on this run — it is intermittent. If it shows up later,
+      // the locator handler registered in goto() will dismiss it.
     }
   }
 
