@@ -2,24 +2,28 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { Collections } from '../../../pages/collections';
 
-// First user-created collection (non-destructive tests — we cancel before deleting)
-const USER_CARD = 1;
 // Disposable collection created just for the confirm+search tests
 const DELETE_TEST_NAME = 'playwright-to-delete';
 
 let collections;
+// Grid index of a real user-created collection, discovered per test run.
+// Assuming a fixed index risks targeting the default "Saved Ads" card, which has no
+// delete icon at all.
+let userCard;
 
 // File-level shared setup — also applies to tests inside the describe block below.
 test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   collections = new Collections(page);
   await collections.navigate();
+  userCard = await collections.findUserCreatedCardIndex();
 });
 
 test('Delete icon on a custom collection triggers the Delete Collection confirmation modal', async () => {
-  const collectionName = (await collections.getCardName(USER_CARD).innerText()).trim();
+  test.skip(userCard === -1, 'No user-created collection exists to delete');
+  const collectionName = (await collections.getCardName(userCard).innerText()).trim();
 
-  await collections.getCardDeleteButton(USER_CARD).click();
+  await collections.getCardDeleteButton(userCard).click();
 
   // Modal appears with correct title and the collection name in the message
   await expect(collections.deleteModal).toBeVisible();
@@ -33,15 +37,16 @@ test('Delete icon on a custom collection triggers the Delete Collection confirma
 });
 
 test('Cancel on the Delete Collection modal closes it and leaves the collection in the grid', async () => {
+  test.skip(userCard === -1, 'No user-created collection exists to delete');
   const countBefore = await collections.getCollectionCount();
 
-  await collections.getCardDeleteButton(USER_CARD).click();
+  await collections.getCardDeleteButton(userCard).click();
   await expect(collections.deleteModal).toBeVisible();
 
   await collections.deleteCancelBtn.click();
 
   await expect(collections.deleteModal).not.toBeVisible();
-  await expect(collections.getCard(USER_CARD)).toBeVisible();
+  await expect(collections.getCard(userCard)).toBeVisible();
 
   const countAfter = await collections.getCollectionCount();
   expect(countAfter).toBe(countBefore);

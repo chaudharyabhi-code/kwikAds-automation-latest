@@ -64,22 +64,26 @@ test('Ad card structure - each of the first 5 cards shows brand name, badge, dat
 
 // ─── Test 2: Badge colors are correct for Active, Inactive, and Archived ads ──
 // The expected colours live on the page object (BADGE_COLOR_*), confirmed in DevTools.
-test('Ad card badge - Active is green, Inactive is red, Archived is grey', async () => {
-  // ── Active: green ─────────────────────────────────────────────────────────────
+test('Ad card badge - Active badge is green', async () => {
   await adsLibrary.selectStatus('Active Ads');
   await adsLibrary.waitForFilter();
+
   await expect(adsLibrary.activeAdBadges.first()).toBeVisible();
   await expect(adsLibrary.activeAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_ACTIVE);
+});
 
-  // ── Inactive: red ─────────────────────────────────────────────────────────────
+test('Ad card badge - Inactive badge is red', async () => {
   await adsLibrary.selectStatus('Inactive Ads');
   await adsLibrary.waitForFilter();
+
   await expect(adsLibrary.inactiveAdBadges.first()).toBeVisible();
   await expect(adsLibrary.inactiveAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_INACTIVE);
+});
 
-  // ── Archived: grey ────────────────────────────────────────────────────────────
+test('Ad card badge - Archived badge is grey', async () => {
   await adsLibrary.selectStatus('Archived Ads');
   await adsLibrary.waitForFilter();
+
   await expect(adsLibrary.archivedAdBadges.first()).toBeVisible();
   await expect(adsLibrary.archivedAdBadges.first()).toHaveCSS('color', adsLibrary.BADGE_COLOR_ARCHIVED);
 });

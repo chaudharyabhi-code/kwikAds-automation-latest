@@ -12,8 +12,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Search - valid match filters grid to show only matching collections', async () => {
-  // Read the name of the first user-created card dynamically so the test doesn't depend on a hardcoded name
-  const firstCardName = (await collections.getCardName(1).innerText()).trim();
+  // Discover a real user-created collection instead of assuming one sits at index 1 —
+  // a merchant may have none at all.
+  const userCard = await collections.findUserCreatedCardIndex();
+  test.skip(userCard === -1, 'No user-created collection to search for');
+
+  const firstCardName = (await collections.getCardName(userCard).innerText()).trim();
 
   await collections.search(firstCardName);
 

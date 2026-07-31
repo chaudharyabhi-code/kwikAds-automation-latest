@@ -150,6 +150,78 @@ export class Collections {
     return this.collectionCards.nth(n).locator('div[title]');
   }
 
+  // ── Dynamic discovery (never assume a fixed grid index) ─────────────────────
+
+  // Index of the first user-created collection, or -1 if there are none.
+  // The default "Saved Ads" card has no delete icon, so the presence of one is what
+  // identifies a user-created card — independent of grid order.
+  async findUserCreatedCardIndex() {
+    // Make sure the grid is actually rendered first. Without this, a slow/failed load
+    // yields a count of 0, the caller's guard skips, and a real failure is hidden as
+    // "no collections exist".
+    await this.collectionCardsGrid.waitFor({ state: 'visible', timeout: 30000 });
+    const total = await this.collectionCards.count();
+    for (let i = 0; i < total; i++) {
+      if (await this.getCardDeleteButton(i).count() > 0) return i;
+    }
+    return -1;
+  }
+
+  // ONE pass over the grid, returning the first user-created card, the first card that
+  // contains ads, and the first empty card.
+  //
+  // A collection card in the grid does NOT show its ad count, so the only way to learn it
+  // is to open the collection — which costs a click + loader per collection. Doing that
+  // per test blows the 60s default timeout, so callers should run this once in a
+  // beforeAll and reuse the indexes.
+  async scanCollectionsOnce() {
+    await this.collectionCardsGrid.waitFor({ state: 'visible', timeout: 30000 });
+    const total = await this.collectionCards.count();
+    const found = { userCard: -1, withAds: -1, empty: -1 };
+
+    for (let i = 0; i < total; i++) {
+      if (await this.getCardDeleteButton(i).count() === 0) continue; // skip "Saved Ads"
+      if (found.userCard === -1) found.userCard = i;
+      if (found.withAds !== -1 && found.empty !== -1) break;         // nothing left to learn
+
+      await this.openCollection(i);
+      const isEmpty = await this.isOpenCollectionEmpty();
+      await this.goBackToCollections();
+
+      if (isEmpty && found.empty === -1) found.empty = i;
+      if (!isEmpty && found.withAds === -1) found.withAds = i;
+    }
+    return found;
+  }
+
+  // Index of the first user-created collection that contains NO ads, else -1.
+  async findEmptyCardIndex() {
+    await this.collectionCardsGrid.waitFor({ state: 'visible', timeout: 30000 });
+    const total = await this.collectionCards.count();
+    for (let i = 0; i < total; i++) {
+      if (await this.getCardDeleteButton(i).count() === 0) continue; // skip Saved Ads
+      await this.openCollection(i);
+      const empty = await this.isOpenCollectionEmpty();
+      await this.goBackToCollections();
+      if (empty) return i;
+    }
+    return -1;
+  }
+
+  // Index of the first collection whose header reports at least `min` ads, else -1.
+  async findCardIndexWithAds(min = 1) {
+    await this.collectionCardsGrid.waitFor({ state: 'visible', timeout: 30000 });
+    const total = await this.collectionCards.count();
+    for (let i = 0; i < total; i++) {
+      if (await this.getCardDeleteButton(i).count() === 0) continue; // skip Saved Ads
+      await this.openCollection(i);
+      const count = await this.getDetailAdCount();
+      await this.goBackToCollections();
+      if (count >= min) return i;
+    }
+    return -1;
+  }
+
   // ── Lookup by collection name (rather than grid index) ───────────────────────
 
   // Returns the collection card whose text contains `name`
@@ -214,14 +286,25 @@ export class Collections {
     await this.page.waitForLoadState('networkidle');
   }
 
-  // Opens the Nth collection card and waits for the detail view to load (loader appears during open)
+  // Opens the Nth collection card and waits for the detail view to load (loader appears
+  // during open).
+  //
+  // Readiness is keyed on the back button + ad-count line, which render for EVERY
+  // collection. An empty collection shows neither the "Select" button nor the
+  // "Showing N ads" label — only the empty state — so waiting on Select would hang
+  // forever on any collection with no ads.
   async openCollection(n = 0) {
     await this.collectionCards.nth(n).click();
-    const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
-    await spinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
-    await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
-    await this.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
+    await this.pageSpinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await this.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+    await this.detailBackButton.waitFor({ state: 'visible', timeout: 15000 });
+    await this.detailAdCountInfo.waitFor({ state: 'visible', timeout: 15000 });
     await this.page.waitForLoadState('networkidle');
+  }
+
+  // True when the open collection contains no ads (empty-state placeholder shown).
+  async isOpenCollectionEmpty() {
+    return this.detailEmptyState.isVisible();
   }
 
   // Clicks the back arrow and waits for the collections grid to reappear

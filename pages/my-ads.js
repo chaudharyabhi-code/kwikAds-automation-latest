@@ -4,6 +4,9 @@ export class MyAds {
   constructor(page) {
     this.page = page;
 
+    // Number of ads the grid loads in its first batch (product behaviour)
+    this.FIRST_PAGE_SIZE = 30;
+
     // ── DOM/framework details the specs assert against ────────────────────────
     // Ant Design disabled-state classes for the filter controls
     this.DISABLED_SELECT_CLASS = /ant-select-disabled/;
@@ -20,7 +23,7 @@ export class MyAds {
       .last();
     this.openDropdownOptions        = this.openSelectDropdown.locator('.ant-select-item-option');
     this.openDropdownOptionContents = this.openSelectDropdown.locator('.ant-select-item-option-content');
-    this.filtersDiv= this.adsLibraryContent.locator('div[style="border-radius: 14px; border: 1px solid rgb(226, 232, 240); background-color: rgb(255, 255, 255); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px; position: sticky; top: 0px; z-index: 1;"]').nth(0)
+    this.filtersDiv= this.adsLibraryContent.locator('div[style="border-radius: 14px; border: 1px solid rgb(226, 232, 240); background-color: rgb(255, 255, 255); padding: 12px 14px; display: flex; flex-direction: column; gap: 0px; box-shadow: rgba(0, 0, 0, 0.05) 0px 1px 2px; position: sticky; top: 0px; z-index: 1;"]').nth(0)
 
     // Top nav tab (Creative Agent → My Ads)
     this.myAdsTab = this.adsLibraryContent.getByRole('button', { name: 'My Ads' }).first();

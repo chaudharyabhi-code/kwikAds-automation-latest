@@ -4,16 +4,19 @@ import { Competitor } from '../../../../pages/competitor';
 
 let competitor;
 
+// Index of a NON-merged competitor, discovered per run. These tests need the standard
+// "Delete Competitor" modal, not the "Delete Merged Group" variant a merged card shows —
+// so the card is selected by the absence of a MERGED GROUP badge rather than by index.
+let CARD_INDEX;
+
 // Shared setup: log in, land on the page under test.
 test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  CARD_INDEX = await competitor.findPlainCardIndex();
+  test.skip(CARD_INDEX === -1, 'No non-merged competitor available to delete');
 });
-
-// Card index 1 is used across all tests — must be a non-merged competitor
-// so the standard "Delete Competitor" modal (not "Delete Merged Group") appears
-const CARD_INDEX = 1;
 
 // ─── Test 1: Modal appears ────────────────────────────────────────────────────
 test('Delete competitor - confirmation modal shows brand name and Cancel/Delete buttons', async () => {

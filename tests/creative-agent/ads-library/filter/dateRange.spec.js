@@ -18,31 +18,28 @@ const DATE_TO   = process.env.LAUNCH_DATE_TO;
 // Sets a date to local midnight 00:00:00 so .getTime() comparison is timezone-safe
 const toMidnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-// ─── Test 1: Date range returns ads within range ──────────────────────────────
-test('Launch Date filter - first ad in ASC order is not before start date, first ad in DESC order is not after end date', async () => {
+// ─── Test 1a: oldest ad in range is not before the start date ─────────────────
+test('Launch Date filter - first ad in ASC order is not before the start date', async () => {
   await adsLibrary.setDateRange(DATE_FROM, DATE_TO);
-
-  // ── Run both sorts and collect dates first ──
   await adsLibrary.sortAsc();
-  const firstAdDateAsc  = await adsLibrary.getFirstAdLaunchDate();
 
-  await adsLibrary.sortDesc();
-  const firstAdDateDesc = await adsLibrary.getFirstAdLaunchDate();
-
-  // ── Report both results together ──
   const startDate = toMidnight(new Date(DATE_FROM));
-  const endDate   = toMidnight(new Date(DATE_TO));
-  const ascDate   = toMidnight(firstAdDateAsc);
-  const descDate  = toMidnight(firstAdDateDesc);
+  const ascDate   = toMidnight(await adsLibrary.getFirstAdLaunchDate());
 
-  console.table({
-    'ASC first ad':  { date: ascDate.toDateString(),  expected: `>= ${startDate.toDateString()}`,  pass: ascDate.getTime()  >= startDate.getTime() },
-    'DESC first ad': { date: descDate.toDateString(), expected: `<= ${endDate.toDateString()}`,     pass: descDate.getTime() <= endDate.getTime()   },
-  });
+  console.log(`ASC first ad: ${ascDate.toDateString()} | expected >= ${startDate.toDateString()}`);
+  expect(ascDate.getTime()).toBeGreaterThanOrEqual(startDate.getTime());
+});
 
-  // ── Soft assertions — both are checked and reported even if one fails ──
-  expect.soft(ascDate.getTime()).toBeGreaterThanOrEqual(startDate.getTime());
-  expect.soft(descDate.getTime()).toBeLessThanOrEqual(endDate.getTime());
+// ─── Test 1b: newest ad in range is not after the end date ────────────────────
+test('Launch Date filter - first ad in DESC order is not after the end date', async () => {
+  await adsLibrary.setDateRange(DATE_FROM, DATE_TO);
+  await adsLibrary.sortDesc();
+
+  const endDate  = toMidnight(new Date(DATE_TO));
+  const descDate = toMidnight(await adsLibrary.getFirstAdLaunchDate());
+
+  console.log(`DESC first ad: ${descDate.toDateString()} | expected <= ${endDate.toDateString()}`);
+  expect(descDate.getTime()).toBeLessThanOrEqual(endDate.getTime());
 });
 
 

@@ -11,6 +11,15 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  // A merchant may have no (or too few) saved competitors — skip rather than
+  // index into an empty list.
+  const cardCount = await competitor.countAllCards();
+  test.skip(cardCount < 1, `Needs at least 1 saved competitor(s); found ${cardCount}`);
+  // Sync runs at most once per day. While the "Synced today" badge is showing, the
+  // Sync button will not start a new sync and no progress popover ever appears — so this
+  // must be checked BEFORE attempting to trigger one.
+  test.skip(await competitor.isSyncedToday(), 'Competitors already synced today — cannot trigger a new sync');
+
   await competitor.syncCompetitor(0);
   await expect(competitor.syncPopover).toBeVisible();
 });

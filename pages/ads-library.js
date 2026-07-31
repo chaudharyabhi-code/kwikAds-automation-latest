@@ -33,6 +33,10 @@ export class AdsLibrary {
     this.emptyState              = this.adsLibraryContent.locator('.ant-empty-description').filter({ hasText: 'No ads found matching your search' });
     // Selected-tag remove "x" and the empty-state placeholder inside the Brand Name select
     this.brandFilterRemoveBtn    = this.brandNameFilter.locator('.ant-select-selection-item-remove');
+    // Page-level "Clear all" button next to the search box — resets every active filter in
+    // one click. Only rendered while at least one filter is applied. CSS uppercases it, so
+    // the DOM text is "Clear all".
+    this.clearAllFiltersButton   = this.adsLibraryContent.locator('button').filter({ hasText: /^clear all$/i });
     this.brandFilterPlaceholder  = this.brandNameFilter.locator('.ant-select-selection-placeholder');
     this.brandDropdownOptions    = this.page.locator('.ant-select-dropdown .ant-select-item-option');
     this.brandDropdownNoData     = this.page.locator('.ant-select-dropdown .ant-empty, .ant-select-dropdown .ant-select-empty').filter({ hasText: 'No data' });
@@ -89,7 +93,10 @@ this.archivedAdBadges = this.adsLibraryContent
     this.saveToCollectionRows       = this.saveToCollectionModal.locator('[style*="cursor: pointer"]');
     // 3-dot (kebab) menu on the first ad card
     this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
-    this.cardDropdownMenu           = this.page.locator('.ant-dropdown').filter({ hasText: 'View Meta Ad Link' });
+    // Scope to the OPEN dropdown: Ant Design leaves previously-opened menus in the DOM
+    // marked .ant-dropdown-hidden, so a plain .ant-dropdown match accumulates stale
+    // copies and trips strict mode once more than one card menu has been opened.
+    this.cardDropdownMenu           = this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)').filter({ hasText: 'View Meta Ad Link' });
     this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
     // Individual menu items. Each <li> carries data-menu-id="rc-menu-uuid-<random>-1-<key>";
     // the uuid changes per render but the trailing key is stable, so match on the suffix.
@@ -145,7 +152,11 @@ this.archivedAdBadges = this.adsLibraryContent
     this.breadcrumbHomeIcon         = this.breadcrumbHomeLink.locator('[aria-label="home"]');
     this.breadcrumbCreativeAgentLink = this.breadcrumbNav.locator('a[href*="/kwikads"]');
     // Share Creative popup (opens from the share icon button on each ad card)
-    this.sharePopup            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Share Creative' });
+    // ":visible" matters here: closing an Ant modal leaves it in the DOM, so repeatedly
+    // opening the share popup (as the fresh-ad scan does) accumulates stale copies and a
+    // plain match trips strict mode. Matching only the visible one also keeps
+    // not.toBeVisible()/waitFor('hidden') working, since a closed popup matches nothing.
+    this.sharePopup            = this.page.locator('div[aria-modal="true"]:visible').filter({ hasText: 'Share Creative' });
     // Custom × close button (position:absolute, not the standard ant-modal-close)
     this.sharePopupCloseBtn    = this.sharePopup.locator('button[style*="position: absolute"]');
     // Checkboxes — use the label wrapper (.ant-checkbox-wrapper) so we can both
@@ -332,16 +343,22 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.waitForFilter();
   }
 
+  // The order button is a toggle whose label shows the CURRENT order, so these are
+  // written as "ensure" helpers: they no-op when the grid is already sorted that way.
+  // (Without this, calling sortDesc() from the default DESC state looks for an "Asc"
+  // button that isn't rendered and times out.)
   async sortAsc() {
-    // Button label shows current state — click "Desc" button to switch from DESC → ASC
-    await this.orderDescButton.click();
-    await this.waitForFilter();
+    if (await this.orderDescButton.isVisible().catch(() => false)) {
+      await this.orderDescButton.click();
+      await this.waitForFilter();
+    }
   }
 
   async sortDesc() {
-    // Button label shows current state — click "Asc" button to switch from ASC → DESC
-    await this.orderAscButton.click();
-    await this.waitForFilter();
+    if (await this.orderAscButton.isVisible().catch(() => false)) {
+      await this.orderAscButton.click();
+      await this.waitForFilter();
+    }
   }
 
   async enterSelectMode() {
@@ -429,6 +446,96 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.cardDetailModal.waitFor({ state: 'visible' });
   }
 
+  // ── Competitor seeding (Ad Library → Brand filter → Tag Competitor) ──────────
+  // Used as a precondition for the Competitors tab tests: a merchant may have no saved
+  // competitors at all, which would leave those tests with nothing to act on.
+
+  // Opens the Brand Name dropdown; returns how many brand options are listed.
+  // Waits for the filter control itself first so a collapsed/not-yet-rendered filter row
+  // fails on the control rather than on a confusing "no options" timeout.
+  async openBrandDropdown() {
+    await this.brandNameFilter.waitFor({ state: 'visible', timeout: 20000 });
+    await this.brandNameFilter.click();
+    await this.brandDropdownOptions.first().waitFor({ state: 'visible', timeout: 20000 });
+    return this.brandDropdownOptions.count();
+  }
+
+  // Closes the Brand Name dropdown and waits for the grid to re-filter.
+  async closeBrandDropdown() {
+    await this.searchInputBox.click();
+    await this.waitForFilter();
+  }
+
+  // Resets every active filter via the page-level "Clear all" button. No-ops when no
+  // filter is applied (the button is not rendered then).
+  async clearAllFilters() {
+    if (await this.clearAllFiltersButton.count() === 0) return;
+    await this.clearAllFiltersButton.click();
+    await this.waitForFilter();
+  }
+
+  // Points the Brand Name filter at exactly ONE brand. Returns the brand's label.
+  async selectOnlyBrand(index) {
+    await this.clearAllFilters();
+    await this.openBrandDropdown();
+    const option = this.brandDropdownOptions.nth(index);
+    const label  = (await option.innerText()).split('(')[0].trim();
+    await option.click();
+    await this.closeBrandDropdown();
+    return label;
+  }
+
+  // Tags the first ad in the grid as a competitor via its 3-dot menu.
+  // Returns 'tagged', or 'already' when that brand is already a saved competitor
+  // (the menu item then reads "Remove Competitor" and must not be clicked).
+  async tagFirstAdAsCompetitor() {
+    await this.openFirstCardMenu();
+    const label = (await this.cardMenuTagCompetitor.innerText()).trim();
+
+    if (/Remove Competitor/i.test(label)) {
+      await this.page.keyboard.press('Escape');
+      await this.cardDropdownMenu.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      return 'already';
+    }
+
+    await this.cardMenuTagCompetitor.click();
+    await this.successToast.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+    await this.page.waitForLoadState('networkidle');
+    return 'tagged';
+  }
+
+  // Walks the Brand Name filter one brand at a time — select brand, tag one of its ads,
+  // deselect it, move to the next — until `target` new competitors have been tagged.
+  // Returns the number of NEW competitors created.
+  async seedCompetitorsFromBrands(target = 5, maxBrands = 20) {
+    const totalBrands = await this.openBrandDropdown();
+    await this.closeBrandDropdown();
+
+    const limit = Math.min(maxBrands, totalBrands);
+    let tagged = 0;
+
+    for (let i = 0; i < limit && tagged < target; i++) {
+      const brand = await this.selectOnlyBrand(i);
+
+      // Brand with no ads rendered — nothing to tag
+      if (await this.adCardList.count() === 0) continue;
+
+      const result = await this.tagFirstAdAsCompetitor();
+      if (result === 'tagged') {
+        tagged++;
+        console.log(`  seeded competitor ${tagged}/${target}: ${brand}`);
+      } else {
+        // Menu showed "Remove Competitor" — this brand is already saved. Leave it alone
+        // and move on; the next iteration clears the filter and picks the next brand.
+        console.log(`  skipped (already a competitor): ${brand}`);
+      }
+    }
+
+    // Leave the filter clean for whatever runs next
+    await this.clearAllFilters();
+    return tagged;
+  }
+
   // ── Competitor Icon ───────────────────────────────────────────────────────────
 
   // Returns the brand name text from the first card in row 0
@@ -499,6 +606,65 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.sharePopup.waitFor({ state: 'visible' });
   }
 
+  // Opens the Share Creative popup on a specific card (row + position within that row).
+  async openSharePopupOnCard(row = 0, cardIndex = 0) {
+    // The grid is virtualised: only rows near the viewport are mounted, so
+    // [data-index="N"] for a row further down does not exist until we scroll there.
+    // Reopening a card by remembered coordinates therefore needs this first.
+    if (row > 0) {
+      await this.virtualizedGridScroller.evaluate((el, r) => { el.scrollTop = r * 700; }, row);
+      await this.page.waitForTimeout(400);
+    }
+    await this.getAdRow(row).waitFor({ state: 'visible', timeout: 15000 });
+
+    const card = this.getCardsInRow(row).nth(cardIndex);
+    await card.scrollIntoViewIfNeeded();
+    await this.cardMenuTrigger(card).click();
+    await this.cardDropdownMenu.waitFor({ state: 'visible' });
+    await this.cardMenuShareCreative.click();
+    await this.sharePopup.waitFor({ state: 'visible' });
+  }
+
+  // True when the OPEN share popup is in its never-generated default state:
+  // no link yet and the action button still reads "Generate Link".
+  async isSharePopupFresh() {
+    if (await this.shareLinkInput.isVisible()) return false;
+    return (await this.shareActionBtn.innerText()).includes('Generate Link');
+  }
+
+  // Scans the ad grid for the first ad whose Share Creative popup is still in its
+  // default (never-generated) state and LEAVES THAT POPUP OPEN.
+  // Returns { row, card } for the ad found, or null if none was found.
+  //
+  // This replaces relying on fixed Library IDs from .env: once a link is generated for
+  // an ad it can never show the default state again, so hard-coded ads "burn out" after
+  // one run. Scanning finds a genuinely fresh ad on every run instead.
+  // Virtualised rows are pulled in by scrolling as each batch is exhausted.
+  // maxRows is deliberately generous: every test that generates a link consumes one
+  // fresh ad, so over repeated runs the ads near the top of the grid all end up with
+  // links and the scan has to reach further down to find an unused one.
+  async findFreshSharePopup({ maxRows = 20 } = {}) {
+    for (let row = 0; row < maxRows; row++) {
+      const cards = this.getCardsInRow(row);
+      let count = await cards.count();
+
+      if (count === 0) {
+        // Row not rendered yet — scroll to let virtuoso mount the next batch
+        await this.scrollAdGrid(700);
+        count = await cards.count();
+        if (count === 0) continue;
+      }
+
+      for (let c = 0; c < count; c++) {
+        await this.openSharePopupOnCard(row, c);
+        if (await this.isSharePopupFresh()) return { row, card: c };
+        await this.closeSharePopup();
+      }
+      await this.scrollAdGrid(700);
+    }
+    return null;
+  }
+
   async closeSharePopup() {
     await this.sharePopupCloseBtn.click();
     // Ant Design exit animation adds ant-zoom-leave-active before hiding;
@@ -509,8 +675,20 @@ this.archivedAdBadges = this.adsLibraryContent
     });
   }
 
-  // Clicks "Generate Link" / "Regenerate Link" and waits for the link input to appear
+  // True when this ad already has a server-persisted share link
+  async hasGeneratedShareLink() {
+    return this.shareLinkInput.isVisible();
+  }
+
+  // Clicks "Generate Link" / "Regenerate Link" and waits for the link input to appear.
+  // Once a link exists the button reads "Regenerate Link" and stays DISABLED until an
+  // option changes, so toggle one off/on first to re-enable it. Without this the tests
+  // only pass on the very first run against a fresh ad.
   async generateShareLink() {
+    if (await this.shareActionBtn.isDisabled()) {
+      await this.toggleShareUgcCheckbox();
+      await this.toggleShareUgcCheckbox();
+    }
     await this.shareActionBtn.click();
     await this.shareLinkInput.waitFor({ state: 'visible' });
   }

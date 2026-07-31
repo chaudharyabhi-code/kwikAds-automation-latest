@@ -18,6 +18,10 @@ test.describe.serial('Merge modal flow', () => {
     competitor = new Competitor(page);
     await competitor.navigate();
 
+    // A merchant may have fewer than 2 saved competitors — merging needs two.
+    const cardCount = await competitor.countAllCards();
+    test.skip(cardCount < 2, `Needs at least 2 saved competitors; found ${cardCount}`);
+
     brand1 = (await competitor.getCardName(0).innerText()).trim();
     brand2 = (await competitor.getCardName(1).innerText()).trim();
     countBefore = await competitor.getSavedCount();

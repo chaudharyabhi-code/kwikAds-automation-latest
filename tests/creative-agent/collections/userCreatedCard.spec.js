@@ -11,10 +11,12 @@ test.beforeEach(async ({ page }) => {
   await collections.navigate();
 });
 
-// Uses the first non-default card (index 1 in the grid = first user-created collection)
-const USER_CARD = 1;
-
 test('User-created collection card shows name, creation date, delete icon, and attribution', async () => {
+  // Discover a real user-created card (the one with a delete icon) instead of
+  // assuming it sits at a fixed grid index.
+  const USER_CARD = await collections.findUserCreatedCardIndex();
+  test.skip(USER_CARD === -1, 'No user-created collection exists');
+
   await expect(collections.getCardName(USER_CARD)).toBeVisible();
   await expect(collections.getCardDate(USER_CARD)).toBeVisible();
   await expect(collections.getCardDeleteButton(USER_CARD)).toBeVisible();

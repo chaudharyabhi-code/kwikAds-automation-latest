@@ -50,13 +50,13 @@ test('My Ads - page loads with all required UI elements visible', async () => {
 });
 
 // ─── Test 2: Results count shows loaded and total correctly ───────────────────
-test('My Ads - results count shows 30 loaded initially and correct total', async ({ page }) => {
+test('My Ads - results count shows the first batch loaded and the correct total', async ({ page }) => {
   const { loaded, total } = await myAds.getResultsLoadedAndTotal();
 
   console.log(`My Ads initial count: ${loaded} of ${total} ads`);
 
-  // First page batch is always 30
-  expect(loaded).toBe(30);
+  // First batch is FIRST_PAGE_SIZE, or the whole set when there are fewer ads than that
+  expect(loaded).toBe(Math.min(myAds.FIRST_PAGE_SIZE, total));
   // Total must be positive
   expect(total).toBeGreaterThan(0);
   // Loaded never exceeds total
@@ -70,9 +70,9 @@ test('My Ads - results count shows 30 loaded initially and correct total', async
 // ─── Test 3: Scrolling loads more ad cards beyond the initial 30 ──────────────
 test('My Ads - scrolling down loads more ad cards beyond initial 30', async () => {
   const { loaded: initialLoaded, total } = await myAds.getResultsLoadedAndTotal();
-  expect(initialLoaded).toBe(30);
+  expect(initialLoaded).toBe(Math.min(myAds.FIRST_PAGE_SIZE, total));
 
-  if (total <= 30) {
+  if (total <= myAds.FIRST_PAGE_SIZE) {
     console.log(`Total is ${total} — nothing more to load; skipping scroll assertion`);
     return;
   }
