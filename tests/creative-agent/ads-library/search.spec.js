@@ -12,11 +12,31 @@ test.beforeEach(async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
-test('Search Ad by Library ID', async ({ page }) => {
-  await adsLibrary.searchAd(process.env.SEARCHABLE_LIBRARY_ID);
-  await page.waitForLoadState('networkidle');
+// The Library ID is DISCOVERED at runtime — open the first ad's modal, read its ID, close
+// it, then search for that ID.
+test.describe('Search by a Library ID taken from the first ad', () => {
+  let libraryId;
 
-  await expect(adsLibrary.resultsCount).toBeVisible();
+  test.beforeEach(async () => {
+    libraryId = await adsLibrary.getFirstAdLibraryId();
+    expect(libraryId).toMatch(/^\d+$/);
+
+    await adsLibrary.searchAd(libraryId);
+    await adsLibrary.waitForFilter();
+  });
+
+  test('Searching a Library ID returns exactly one ad', async () => {
+    const { total } = await adsLibrary.getResultsLoadedAndTotal();
+    expect(total).toBe(1);
+  });
+
+  test('The returned ad has the same Library ID that was searched for', async () => {
+    await adsLibrary.openFirstCardDetail();
+
+    expect(await adsLibrary.getCardDetailLibraryId()).toBe(libraryId);
+
+    await adsLibrary.closeCardDetail();
+  });
 });
 
 test('Search with non-existent term returns empty state', async ({ page }) => {
@@ -52,20 +72,22 @@ test('pressing Enter in search bar triggers search without clicking the search i
   expect(filteredCount).toBeLessThanOrEqual(totalBefore);
 });
 
-test('partial Library ID search returns matching results', async ({ page }) => {
-  const partialId = process.env.SEARCHABLE_LIBRARY_ID.slice(0, 6);
-  await adsLibrary.searchAd(partialId);
-  await page.waitForLoadState('networkidle');
+test('partial Library ID search returns matching results', async () => {
+  // Take a real ID from the grid and search only its first 6 digits
+  const libraryId = await adsLibrary.getFirstAdLibraryId();
+
+  await adsLibrary.searchAd(libraryId.slice(0, 6));
+  await adsLibrary.waitForFilter();
 
   const count = await adsLibrary.getResultsCount();
   expect(count).toBeGreaterThan(0);
-  await expect(adsLibrary.resultsCount).toBeVisible();
 });
 
 test('clearing search input restores full unfiltered results', async () => {
   const totalBefore = await adsLibrary.getResultsCount();
 
-  await adsLibrary.searchAd(process.env.SEARCHABLE_LIBRARY_ID);
+  // Any real query will do here — the behaviour under test is the clear button
+  await adsLibrary.searchAd(await adsLibrary.getFirstCardBrandName());
   await adsLibrary.waitForFilter();
 
   // Clear via the × button — should auto-restore results without pressing Enter

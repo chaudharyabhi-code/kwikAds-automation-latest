@@ -424,6 +424,14 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.cardDetailModal.waitFor({ state: 'visible' });
   }
 
+  // Opens the first ad's detail modal, reads its Library ID, and closes the modal again.
+  async getFirstAdLibraryId() {
+    await this.openFirstCardDetail();
+    const id = await this.getCardDetailLibraryId();
+    await this.closeCardDetail();
+    return id;
+  }
+
   async getCardDetailLibraryId() {
     const text = await this.cardDetailLibraryIdEl.innerText();
     // text is "Library ID: 1394977966061986" — extract the numeric ID
