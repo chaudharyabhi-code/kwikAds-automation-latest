@@ -37,6 +37,16 @@ export class AdsLibrary {
     // one click. Only rendered while at least one filter is applied. CSS uppercases it, so
     // the DOM text is "Clear all".
     this.clearAllFiltersButton   = this.adsLibraryContent.locator('button').filter({ hasText: /^clear all$/i });
+    // Funnel toggle beside the search box. The filter row can be COLLAPSED, in which case
+    // Brand Name / Ad Format / etc. are not in the DOM at all and any filter interaction
+    // hangs waiting for a control that will never appear.
+    // Primary guess: an Ant filter icon. Fallback: an icon-only button in the header that
+    // is not a card 3-dot trigger. Verify against the real DOM if expansion ever fails.
+    this.filtersToggleButton     = this.adsLibraryContent
+      .locator('button')
+      .filter({ has: this.page.locator('.anticon-filter, svg[data-icon="filter"], svg[data-icon="control"]') })
+      .or(this.adsLibraryContent.locator('button:has(svg):not(.ant-dropdown-trigger)').filter({ hasText: /^\s*$/ }))
+      .first();
     this.brandFilterPlaceholder  = this.brandNameFilter.locator('.ant-select-selection-placeholder');
     this.brandDropdownOptions    = this.page.locator('.ant-select-dropdown .ant-select-item-option');
     this.brandDropdownNoData     = this.page.locator('.ant-select-dropdown .ant-empty, .ant-select-dropdown .ant-select-empty').filter({ hasText: 'No data' });
@@ -454,22 +464,139 @@ this.archivedAdBadges = this.adsLibraryContent
   // Waits for the filter control itself first so a collapsed/not-yet-rendered filter row
   // fails on the control rather than on a confusing "no options" timeout.
   async openBrandDropdown() {
+    await this.ensureFiltersExpanded();
     await this.brandNameFilter.waitFor({ state: 'visible', timeout: 20000 });
     await this.brandNameFilter.click();
     await this.brandDropdownOptions.first().waitFor({ state: 'visible', timeout: 20000 });
     return this.brandDropdownOptions.count();
   }
 
+  // Makes the filter controls usable before touching them.
+  //
+  // Deliberately does NOT force-scroll: the filter row is position:sticky so it never
+  // scrolls out of view, and driving scrollTop against the virtualised grid makes it
+  // re-render continuously (a visible page jitter). Playwright already scrolls an element
+  // into view before clicking it, so expanding a collapsed panel is the only thing needed.
+  // True when the filter row is really open. isVisible() is NOT enough: the panel
+  // collapses via a grid-template-rows transition on an overflow:hidden wrapper, so the
+  // controls stay in the DOM and report "visible" while clipped to zero height. Clicking
+  // one then gets intercepted by the wrapper and Playwright retries every 500ms, which is
+  // what makes the page appear to shiver.
+  async isFilterRowExpanded() {
+    return this.brandNameFilter.evaluate(el => {
+      const r = el.getBoundingClientRect();
+      if (r.height < 5 || r.width < 5) return false;
+      // Is the control actually the topmost element at its own centre? getBoundingClientRect
+      // still reports full height when an ANCESTOR clips it (the panel collapses via
+      // grid-template-rows on an overflow:hidden wrapper), and the sticky search bar can sit
+      // over it — either way a click gets intercepted and Playwright retries forever.
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const top = document.elementFromPoint(cx, cy);
+      // Must be the element itself or a descendant — the same rule Playwright applies.
+      // If an ANCESTOR is topmost (e.g. the overflow-hidden wrapper), the control is
+      // clipped and a click would be intercepted, so that must count as NOT expanded.
+      return !!top && (el === top || el.contains(top));
+    }).catch(() => false);
+  }
+
+  async ensureFiltersExpanded() {
+    // 1. Page scrolled down after tagging an ad? Bring the top (and the control) back.
+    //    An off-viewport element also fails the hit-test below, so scrolling comes first
+    //    and is retried before concluding the panel is collapsed.
+    await this.scrollPageToTop();
+    if (await this.isFilterRowExpanded()) return;
+
+    await this.brandNameFilter.scrollIntoViewIfNeeded().catch(() => {});
+    await this.page.waitForTimeout(200);
+    if (await this.isFilterRowExpanded()) return;
+
+    // 2. Still not hittable → genuinely collapsed behind the funnel toggle.
+    if (!(await this.hasFiltersToggle())) {
+      throw new Error(
+        'Brand Name filter is not clickable and no filter-toggle button was found. ' +
+        'If the filter row is collapsed behind a funnel icon, update filtersToggleButton ' +
+        'in pages/ads-library.js with that button\'s real selector.'
+      );
+    }
+    await this.clickFiltersToggle();
+
+    // The panel animates open over ~0.3s — poll until the control is actually hittable
+    for (let i = 0; i < 25; i++) {
+      if (await this.isFilterRowExpanded()) return;
+      await this.page.waitForTimeout(200);
+    }
+    throw new Error('Clicked the filter toggle but the filter row never became clickable');
+  }
+
+  // The filter-panel toggle is an icon-only button sitting in the same row as the search
+  // input, to its right (the funnel). Resolved from the live layout rather than a guessed
+  // class name, since it is a custom icon rather than a standard Ant one.
+  _filtersToggleFinder() {
+    return (searchPlaceholderPrefix) => {
+      const input = document.querySelector(`input[placeholder^="${searchPlaceholderPrefix}"]`);
+      if (!input) return null;
+      const row = input.getBoundingClientRect();
+      const btns = Array.from(document.querySelectorAll('button'));
+      return btns.find(b => {
+        if (b.classList.contains('ant-dropdown-trigger')) return false;
+        if ((b.innerText || '').trim()) return false;          // icon-only
+        if (!b.querySelector('svg')) return false;
+        const r = b.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false;
+        return Math.abs(r.top - row.top) < 60 && r.left >= row.left; // same band, right side
+      }) || null;
+    };
+  }
+
+  async hasFiltersToggle() {
+    return this.page.evaluate(
+      ([src, prefix]) => !!eval(src)(prefix),
+      [`(${this._filtersToggleFinder().toString()})`, 'Search ads by Library ID']
+    ).catch(() => false);
+  }
+
+  async clickFiltersToggle() {
+    return this.page.evaluate(
+      ([src, prefix]) => { const el = eval(src)(prefix); if (el) { el.click(); return true; } return false; },
+      [`(${this._filtersToggleFinder().toString()})`, 'Search ads by Library ID']
+    ).catch(() => false);
+  }
+
+  // Scrolls the dashboard page container to the top.
+  //
+  // Clicking a card's 3-dot menu scrolls this container down, which is what puts the
+  // filter row and the "Clear all" button out of reach. Resolves the container at runtime
+  // (preferring .app-container, else the actual vertically-scrolling div) rather than
+  // guessing a class name, and touches exactly ONE element — scrolling the virtualised ad
+  // grid as well makes it re-render repeatedly and the page visibly jitters.
+  async scrollPageToTop() {
+    await this.page.evaluate(() => {
+      const el = document.querySelector('.app-container')
+        || Array.from(document.querySelectorAll('div')).find(d =>
+             d.scrollHeight > d.clientHeight + 50 &&
+             ['auto', 'scroll'].includes(getComputedStyle(d).overflowY));
+      if (el) el.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }).catch(() => {});
+    await this.page.waitForTimeout(300);
+  }
+
   // Closes the Brand Name dropdown and waits for the grid to re-filter.
+  // Escape is used rather than clicking the search box: after the grid has scrolled, the
+  // search box may be off-screen, so the click lands nowhere and the list stays open.
   async closeBrandDropdown() {
-    await this.searchInputBox.click();
+    await this.page.keyboard.press('Escape');
+    await this.page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)')
+      .first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
     await this.waitForFilter();
   }
 
   // Resets every active filter via the page-level "Clear all" button. No-ops when no
   // filter is applied (the button is not rendered then).
   async clearAllFilters() {
-    if (await this.clearAllFiltersButton.count() === 0) return;
+    await this.ensureFiltersExpanded();
+    if (await this.clearAllFiltersButton.count() === 0) return;   // no filter applied
     await this.clearAllFiltersButton.click();
     await this.waitForFilter();
   }
@@ -485,6 +612,18 @@ this.archivedAdBadges = this.adsLibraryContent
     return label;
   }
 
+  // Dismisses an open card 3-dot menu. Escape first; if the menu is still up (Ant keeps
+  // the node around and the click can land nowhere after a scroll), click a neutral spot.
+  async closeCardMenu() {
+    await this.page.keyboard.press('Escape');
+    if (await this.cardDropdownMenu.count() > 0) {
+      await this.cardDropdownMenu.waitFor({ state: 'hidden', timeout: 3000 }).catch(async () => {
+        await this.page.mouse.click(5, 5);
+        await this.cardDropdownMenu.waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {});
+      });
+    }
+  }
+
   // Tags the first ad in the grid as a competitor via its 3-dot menu.
   // Returns 'tagged', or 'already' when that brand is already a saved competitor
   // (the menu item then reads "Remove Competitor" and must not be clicked).
@@ -493,14 +632,15 @@ this.archivedAdBadges = this.adsLibraryContent
     const label = (await this.cardMenuTagCompetitor.innerText()).trim();
 
     if (/Remove Competitor/i.test(label)) {
-      await this.page.keyboard.press('Escape');
-      await this.cardDropdownMenu.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+      // Already a competitor — must NOT be clicked. Dismiss and move on.
+      await this.closeCardMenu();
       return 'already';
     }
 
     await this.cardMenuTagCompetitor.click();
     await this.successToast.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
     await this.page.waitForLoadState('networkidle');
+    await this.closeCardMenu();
     return 'tagged';
   }
 
