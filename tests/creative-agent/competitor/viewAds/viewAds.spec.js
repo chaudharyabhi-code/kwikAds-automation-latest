@@ -9,6 +9,10 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  // A merchant may have no (or too few) saved competitors — skip rather than
+  // index into an empty list.
+  const cardCount = await competitor.countAllCards();
+  test.skip(cardCount < 1, `Needs at least 1 saved competitor(s); found ${cardCount}`);
 });
 
 test('View Ads - navigates to Ad Library with brand name filter pre-applied for that competitor', async () => {

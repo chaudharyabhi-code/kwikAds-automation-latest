@@ -95,6 +95,8 @@ test('Select mode - clicking a selected card deselects it and decrements count t
 test('Add to Collection - saves 2 selected ads and collection count increases by 2', async ({ page }) => {
   // ── Step 1: Record the actual ad count inside the first collection ──────────
   await adsLibrary.navigateToCollections();
+  // A merchant may have no collections at all — nothing to save into.
+  test.skip(await adsLibrary.collectionListCards.count() === 0, 'No collection available to save into');
   await adsLibrary.openFirstCollectionCard();
 
   const collectionName = await adsLibrary.getOpenCollectionName();
@@ -130,23 +132,36 @@ test('Add to Collection - saves 2 selected ads and collection count increases by
 
   console.table({
     collectionName,
-    'count before':            countBefore,
-    'count in modal':          countInModal,
-    'count after':             countAfter,
-    'expected after':          countBefore + 2,
-    'modal count is accurate': countInModal === countBefore,
+    'count before':   countBefore,
+    'count after':    countAfter,
+    'expected after': countBefore + 2,
   });
 
-  // Primary assertion: collection must contain 2 more ads than before
-  expect.soft(countAfter).toBe(countBefore + 2);
+  // Collection must contain 2 more ads than before
+  expect(countAfter).toBe(countBefore + 2);
+});
 
-  // Bug report: modal count should match the actual count — flag if it doesn't
-  if (countInModal !== countBefore) {
-    console.warn(
-      `Bug: "Save to Collection" modal shows ${countInModal} ads for "${collectionName}" ` +
-      `but the collection actually had ${countBefore} ads before adding. ` +
-      `This is a stale-count display bug in the modal.`
-    );
-  }
-  expect.soft(countInModal).toBe(countBefore);
+// ─── Test 8: the modal's per-collection ad count matches reality ──────────────
+// Split out from the save flow above: this is a separate behaviour (the count the
+// modal displays) and is non-destructive — the modal is closed without saving.
+test('Add to Collection - modal shows the collection\'s actual current ad count', async ({ page }) => {
+  // Actual count, read from the collection itself
+  await adsLibrary.navigateToCollections();
+  // A merchant may have no collections at all — nothing to save into.
+  test.skip(await adsLibrary.collectionListCards.count() === 0, 'No collection available to save into');
+  await adsLibrary.openFirstCollectionCard();
+  const collectionName = await adsLibrary.getOpenCollectionName();
+  const actualCount    = await adsLibrary.getOpenCollectionAdCount();
+
+  // Count as advertised by the Save to Collection modal
+  await adsLibrary.navigateToAdsLibrary();
+  await page.waitForLoadState('networkidle');
+  await adsLibrary.enterSelectMode();
+  await adsLibrary.selectAdCards(2);
+  await adsLibrary.openAddToCollectionModal();
+
+  const countInModal = await adsLibrary.getCountForCollectionInModal(collectionName);
+  console.log(`"${collectionName}" — modal shows ${countInModal}, actual is ${actualCount}`);
+
+  expect(countInModal).toBe(actualCount);
 });

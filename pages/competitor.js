@@ -80,6 +80,14 @@ export class Competitor {
     await this.page.waitForLoadState('networkidle');
   }
 
+  // True when the page shows the "Synced today" badge. Competitor sync is limited to
+  // once per day, so while this is showing the per-card Sync button will NOT start a new
+  // sync and no progress popover appears — any test that needs an in-progress sync has to
+  // treat this as an unmet precondition.
+  async isSyncedToday() {
+    return this.syncedTodayBadge.isVisible();
+  }
+
   // Hovers the "Synced today" badge to trigger the tooltip
   async hoverSyncedTodayBadge() {
     await this.syncedTodayBadge.hover();
@@ -233,6 +241,27 @@ export class Competitor {
 
   // "MERGED GROUP" badge tag on the Nth card
   getMergedGroupBadge(n = 0) { return this.competitorCards.nth(n).getByText('MERGED GROUP'); }
+
+  // ── Dynamic discovery (never assume a fixed card index) ─────────────────────
+
+  // Index of the first card carrying the MERGED GROUP badge, or -1 if none exists.
+  // Merge order is not guaranteed, so the merged card is not necessarily index 0.
+  async findMergedGroupCardIndex() {
+    const total = await this.competitorCards.count();
+    for (let i = 0; i < total; i++) {
+      if (await this.getMergedGroupBadge(i).count() > 0) return i;
+    }
+    return -1;
+  }
+
+  // Index of the first card WITHOUT the MERGED GROUP badge, or -1.
+  async findPlainCardIndex() {
+    const total = await this.competitorCards.count();
+    for (let i = 0; i < total; i++) {
+      if (await this.getMergedGroupBadge(i).count() === 0) return i;
+    }
+    return -1;
+  }
 
   // "View Merged Competitor Data (N)" expandable link on the Nth card
   getViewMergedDataLink(n = 0) { return this.competitorCards.nth(n).getByText(/View Merged Competitor Data/); }

@@ -24,12 +24,16 @@ export default defineConfig({
   workers: process.env.CI ? 4 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [['list'], ['html']],
-  timeout:60000,
+  /* Per-test budget. Every test logs in from scratch (login + merchant select + KYC
+     dismiss) before it does anything, which alone costs ~30-40s on the dev env — and
+     any test that then opens a collection or an ad detail measured 52-56s. 60s left no
+     headroom, so those failed intermittently in beforeEach/mid-test. */
+  timeout: 120000,
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
     // baseURL: 'http://localhost:3000',
-
+    screenshot: 'only-on-failure',
     headless: !!process.env.CI,
     viewport: null,
     ignoreHTTPSErrors: true,
@@ -50,8 +54,13 @@ export default defineConfig({
       name: 'setup',
       testMatch: 'tests/auth.setup.js',
     },
+    /* Seeds saved competitors before the suite runs. A merchant can legitimately have
+       none, which leaves every Competitors-tab test with nothing to act on. Idempotent:
+       it tops up only the shortfall, so an already-populated merchant costs one page
+       load. */
     {
-      name: 'chromium',
+      name: 'competitor-setup',
+      testMatch: 'tests/competitor.setup.js',
       use: {
         ...devices['Desktop Chrome'],
         viewport: null,
@@ -60,6 +69,17 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: null,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup', 'competitor-setup'],
+    },
+
 
     // {
     //   name: 'firefox',

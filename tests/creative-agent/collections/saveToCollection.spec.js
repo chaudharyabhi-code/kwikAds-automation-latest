@@ -182,6 +182,8 @@ test.describe.serial('Create a new collection inline via "+ New Collection" in t
 
 test.describe.serial('Re-saving the same ad to a collection it already belongs to', () => {
   const RESAVE_COLLECTION = 'playwright-resave-test';
+  // Ad count the modal advertised before the re-save, shared across the tests below
+  let countInModalBeforeResave = 1;
 
   // Extra time: the first test creates a collection, navigates tabs, and saves —
   // combined with the short-but-serial second test, 60s per test is tight.
@@ -211,28 +213,33 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
     await expect(collections.saveToCollectionModal).not.toBeVisible();
   });
 
-  test('Save to non-empty collection: row shows existing ad count, re-save produces toast, count verified in Collections tab', async ({ page }) => {
+  test('After the first save the modal row shows an ad count instead of "Empty board"', async () => {
     await openSaveToCollectionModal();
 
-    // Row must show a non-zero ad count — proves we are saving to a non-empty collection
     const row = collections.saveToCollectionItem.filter({ hasText: RESAVE_COLLECTION }).first();
     await expect(row).not.toContainText('Empty board');
     await expect(row).toContainText('ad');
 
-    // Parse the count shown in the modal row before saving (e.g. "1 ad" → 1)
-    const rowTextBefore = await row.innerText();
-    const countInModal  = parseInt(rowTextBefore.match(/(\d+)\s*ad/)?.[1] ?? '1');
+    // Remember the advertised count for the verification test below
+    const rowText = await row.innerText();
+    countInModalBeforeResave = parseInt(rowText.match(/(\d+)\s*ad/)?.[1] ?? '1');
 
-    // Re-save (same ad to same collection) — app shows some feedback
+    await collections.saveToCollectionModalCloseBtn.click();
+  });
+
+  test('Re-saving the same ad to the same collection closes the modal and shows feedback', async () => {
+    await openSaveToCollectionModal();
+
     await collections.clickSaveToCollectionRow(RESAVE_COLLECTION);
 
     await expect(collections.saveToCollectionModal).not.toBeVisible();
     await expect(collections.anyToast).toBeVisible({ timeout: 10000 });
+  });
 
-    // ── Verify count in Collections tab ────────────────────────────────────────
-    // Navigate to Collections and open the target collection's detail view
+  test('After re-saving, the collection detail still shows at least the original ad count', async () => {
     await collections.navigate();
-    const targetCard = collections.collectionCards.filter({ hasText: RESAVE_COLLECTION }).first();
+
+    const targetCard = collections.getCardByName(RESAVE_COLLECTION).first();
     await targetCard.waitFor({ state: 'visible' });
     await targetCard.click();
 
@@ -241,10 +248,10 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await collections.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
 
-    // Count must be >= the count shown in the modal before re-saving
-    // (app may add a duplicate → countInModal + 1, or prevent duplicates → countInModal)
+    // Count must be >= the count the modal showed before re-saving
+    // (app may add a duplicate → +1, or prevent duplicates → unchanged)
     const countAfterInDetail = await collections.getDetailAdCount();
-    expect(countAfterInDetail).toBeGreaterThanOrEqual(countInModal);
+    expect(countAfterInDetail).toBeGreaterThanOrEqual(countInModalBeforeResave);
     expect(countAfterInDetail).toBeGreaterThan(0);
 
     await collections.goBackToCollections();

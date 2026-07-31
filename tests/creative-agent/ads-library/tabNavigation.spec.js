@@ -4,10 +4,15 @@ import { AdsLibrary } from '../../../pages/ads-library';
 
 let adsLibrary;
 
-// Shared setup: log in, land on the page under test.
+// Shared setup: log in and wait until the Creative Agent shell is interactive.
+// The wait matters: clicking a tab before the SPA has attached its handlers silently
+// does nothing, which is what a bare goto() + immediate click used to produce.
 test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   adsLibrary = new AdsLibrary(page);
+  await adsLibrary.adsLibraryContent.waitFor({ state: 'visible' });
+  await adsLibrary.aiAssistantTab.waitFor({ state: 'visible' });
+  await page.waitForLoadState('networkidle');
 });
 
 // ─── Test 0: Creative Agent lands on the AI Assistant tab by default ──────────
@@ -23,37 +28,44 @@ test('Tab navigation - Creative Agent opens on the AI Assistant tab by default',
   await expect(adsLibrary.collectionsTab).not.toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
 });
 
-// ─── Test 1: All tabs are clickable and navigate to correct content ───────────
-test('Tab navigation - each tab is clickable and loads its content without crash', async ({ page }) => {
+// ─── Test 1: each tab activates and loads its own content (one test per tab) ──
+test('Tab navigation - Ad Library tab activates and shows the ad grid', async ({ page }) => {
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
 
-  // ── Ad Library (already active after navigateToAdsLibrary) ───────────────────
   await expect(adsLibrary.adsLibraryTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
   await expect(adsLibrary.adCardList).toBeVisible();
+});
 
-  // ── My Ads ────────────────────────────────────────────────────────────────────
-  await adsLibrary.myAdsTab.click({ force: true });
+test('Tab navigation - My Ads tab activates and loads without crashing', async ({ page }) => {
+  await adsLibrary.myAdsTab.click();
   await page.waitForLoadState('networkidle');
+
   await expect(adsLibrary.myAdsTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
   // Page must not crash — the content wrapper stays visible
   await expect(adsLibrary.adsLibraryContent).toBeVisible();
+});
 
-  // ── Competitors ───────────────────────────────────────────────────────────────
-  await adsLibrary.competitorsTab.click({ force: true });
+test('Tab navigation - Competitors tab activates and shows its search bar', async ({ page }) => {
+  await adsLibrary.competitorsTab.click();
   await page.waitForLoadState('networkidle');
+
   await expect(adsLibrary.competitorsTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
   await expect(adsLibrary.competitorSearchInput).toBeVisible();
+});
 
-  // ── Collections ───────────────────────────────────────────────────────────────
-  await adsLibrary.collectionsTab.click({ force: true });
+test('Tab navigation - Collections tab activates and loads without crashing', async ({ page }) => {
+  await adsLibrary.collectionsTab.click();
   await page.waitForLoadState('networkidle');
+
   await expect(adsLibrary.collectionsTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
   await expect(adsLibrary.adsLibraryContent).toBeVisible();
+});
 
-  // ── AI Assistant ──────────────────────────────────────────────────────────────
-  await adsLibrary.aiAssistantTab.click({ force: true });
+test('Tab navigation - AI Assistant tab activates and loads without crashing', async ({ page }) => {
+  await adsLibrary.aiAssistantTab.click();
   await page.waitForLoadState('networkidle');
+
   await expect(adsLibrary.aiAssistantTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
   // Content wrapper must be visible — AI assistant page must not crash
   await expect(adsLibrary.adsLibraryContent).toBeVisible();
@@ -65,7 +77,7 @@ test('Tab navigation - only the active tab has the highlighted style; others are
   await page.waitForLoadState('networkidle');
 
   // When Competitors is active, Ad Library tab must NOT have the active color
-  await adsLibrary.competitorsTab.click({ force: true });
+  await adsLibrary.competitorsTab.click();
   await page.waitForLoadState('networkidle');
 
   await expect(adsLibrary.competitorsTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
@@ -86,12 +98,12 @@ test('Tab navigation - filters reset to default state after navigating away and 
   await expect(adsLibrary.allStatusFilter).toContainText('Active Ads');
 
   // Navigate away to My Ads tab
-  await adsLibrary.myAdsTab.click({ force: true });
+  await adsLibrary.myAdsTab.click();
   await page.waitForLoadState('networkidle');
   await expect(adsLibrary.myAdsTab).toHaveCSS('color', adsLibrary.ACTIVE_TAB_COLOR);
 
   // Return to Ad Library by clicking the tab directly
-  await adsLibrary.adsLibraryTab.click({ force: true });
+  await adsLibrary.adsLibraryTab.click();
   await page.waitForLoadState('networkidle');
   await adsLibrary.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
 

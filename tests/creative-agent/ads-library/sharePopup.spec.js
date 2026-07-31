@@ -4,128 +4,242 @@ import { AdsLibrary } from '../../../pages/ads-library';
 
 let adsLibrary;
 
-// Shared setup: log in, land on the page under test.
+// Shared setup: log in and land on the Ad Library grid.
 test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
 });
 
-// Each test targets a specific ad via Library ID search (env vars SHARE_LIBRARY_ID_1–4).
-// Searching by ID isolates the exact ad to row 0, first card — no dependency on
-// grid position or scroll. Tests run in parallel; no serial state.
+// The target ad is DISCOVERED at runtime, not read from .env.
 //
-//   Test 1 → SHARE_LIBRARY_ID_1  (default state, X-close, generate, readonly)
-//   Test 2 → SHARE_LIBRARY_ID_2  (checkbox interactions, button enable/disable)
-//   Test 3 → SHARE_LIBRARY_ID_3 + SHARE_LIBRARY_ID_4  (persistence + no carryover)
+// findFreshSharePopup() walks the grid card by card — opening each card's 3-dot menu →
+// "Share Creative" — until it finds one whose popup is still in the default,
+// never-generated state (only "KAAI Analysis" ticked, button reads "Generate Link",
+// no link input). It scrolls to pull in more virtualised rows as needed and leaves the
+// matching popup open.
 //
-// SHARE_LIBRARY_ID_1/2/3 should be ads with no previously generated share link
-// (first run only for the "no link" assertions; subsequent runs re-generate).
+// Why: generating a link persists server-side, so a fixed SHARE_LIBRARY_ID can only ever
+// show the default state on the very first run — after that those tests were asserting
+// against an ad that already had a link. Scanning finds a genuinely fresh ad every run.
 
-test('Share popup - default state, generate link, and link is readonly', async ({ page }) => {
-  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_1);
-  await adsLibrary.waitForFilter();
-  await adsLibrary.openCardSharePopup(0, 'first');
+// ─── Default state of a never-shared ad (non-destructive: never generates) ─────
+test.describe('Share popup — default state of a fresh ad', () => {
 
-  // ── Default state ─────────────────────────────────────────────────────────
-  await expect(adsLibrary.sharePopup).toContainText('Share Creative');
-  await expect(adsLibrary.sharePopup).toContainText('Generate a shareable link for this ad');
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
-  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
-  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
+  test.beforeEach(async () => {
+    const found = await adsLibrary.findFreshSharePopup();
+    test.skip(!found, 'No ad found whose share link has not been generated yet');
+  });
 
-  // ── Close via X → popup gone; reopen same ad → still no link ─────────────
-  await adsLibrary.closeSharePopup();
-  await expect(adsLibrary.sharePopup).not.toBeVisible();
+  test('Share popup - opens with title and description', async () => {
+    await expect(adsLibrary.sharePopup).toContainText('Share Creative');
+    await expect(adsLibrary.sharePopup).toContainText('Generate a shareable link for this ad');
 
-  await adsLibrary.openCardSharePopup(0, 'first');
-  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
+    await adsLibrary.closeSharePopup();
+  });
 
-  // ── Generate link ─────────────────────────────────────────────────────────
-  await adsLibrary.generateShareLink();
-  const link = await adsLibrary.getGeneratedShareLink();
-  expect(link).toMatch(/^https?:\/\/.+/);
-  await expect(adsLibrary.shareLinkInput).toBeVisible();
-  await expect(adsLibrary.shareCopyBtn).toBeVisible();
-  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
-  await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  test('Share popup - default state has only KAAI Analysis checked', async () => {
+    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.sharePromptsCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
 
-  // ── Link is readonly — typing must not change its value ───────────────────
-  await expect(adsLibrary.shareLinkInput).toHaveAttribute('readonly', '');
-  await adsLibrary.shareLinkInput.click();
-  await page.keyboard.type('EDIT_ATTEMPT');
-  expect(await adsLibrary.getGeneratedShareLink()).toBe(link);
+    await adsLibrary.closeSharePopup();
+  });
 
-  await adsLibrary.closeSharePopup();
+  test('Share popup - default action button is an enabled "Generate Link" with no link shown', async () => {
+    await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
+    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+    await expect(adsLibrary.shareLinkInput).not.toBeVisible();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - the three shareable options are listed', async () => {
+    await expect(adsLibrary.sharePopup).toContainText('Include in shared page');
+    await expect(adsLibrary.shareKaaiCheckbox).toBeVisible();
+    await expect(adsLibrary.shareUgcCheckbox).toBeVisible();
+    await expect(adsLibrary.sharePromptsCheckbox).toBeVisible();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - closing via X hides the popup', async () => {
+    await adsLibrary.closeSharePopup();
+
+    await expect(adsLibrary.sharePopup).not.toBeVisible();
+  });
 });
 
-test('Share popup - checkbox interactions and Regenerate button enable/disable', async () => {
-  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_2);
-  await adsLibrary.waitForFilter();
-  await adsLibrary.openCardSharePopup(0, 'first');
+// ─── Checkbox interactions on a fresh ad (non-destructive) ─────────────────────
+test.describe('Share popup — checkbox interactions', () => {
 
-  // ── Uncheck KAAI → 0 options checked → button disabled ───────────────────
-  await adsLibrary.toggleShareKaaiCheckbox();
-  await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  test.beforeEach(async () => {
+    const found = await adsLibrary.findFreshSharePopup();
+    test.skip(!found, 'No ad found whose share link has not been generated yet');
+  });
 
-  // ── Re-check KAAI → button enabled ───────────────────────────────────────
-  await adsLibrary.toggleShareKaaiCheckbox();
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+  test('Share popup - unchecking the only selected option disables the action button', async () => {
+    await adsLibrary.toggleShareKaaiCheckbox();
 
-  // ── Also check UGC + Prompts → generate with all 3 ───────────────────────
-  await adsLibrary.toggleShareUgcCheckbox();
-  await adsLibrary.toggleSharePromptsCheckbox();
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareUgcCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareKaaiCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-  await adsLibrary.generateShareLink();
-  expect(await adsLibrary.getGeneratedShareLink()).toMatch(/^https?:\/\/.+/);
+    await adsLibrary.closeSharePopup();
+  });
 
-  // ── After generate: button disabled; uncheck one → re-enabled ────────────
-  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
-  await expect(adsLibrary.shareActionBtn).toBeDisabled();
+  test('Share popup - re-checking an option enables the action button again', async () => {
+    await adsLibrary.toggleShareKaaiCheckbox();
+    await expect(adsLibrary.shareActionBtn).toBeDisabled();
 
-  await adsLibrary.toggleShareUgcCheckbox();
-  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+    await adsLibrary.toggleShareKaaiCheckbox();
 
-  await adsLibrary.closeSharePopup();
+    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - all three options can be selected at once', async () => {
+    await adsLibrary.toggleShareUgcCheckbox();
+    await adsLibrary.toggleSharePromptsCheckbox();
+
+    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareUgcCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.sharePromptsCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+
+    await adsLibrary.closeSharePopup();
+  });
 });
 
-test('Share popup - generated link persists on reopen; different ad has no carryover', async () => {
-  // ── Generate on Ad 3 ─────────────────────────────────────────────────────
-  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_3);
-  await adsLibrary.waitForFilter();
-  await adsLibrary.openCardSharePopup(0, 'first');
-  await adsLibrary.generateShareLink();
-  const savedLink = await adsLibrary.getGeneratedShareLink();
-  expect(savedLink).toMatch(/^https?:\/\/.+/);
-  await adsLibrary.closeSharePopup();
+// ─── Generating a link (destructive: consumes one fresh ad per test) ───────────
+test.describe('Share popup — generating a link', () => {
 
-  // ── Ad 4 (different ad) must be clean — no carryover from Ad 3 ───────────
-  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_4);
-  await adsLibrary.waitForFilter();
-  await adsLibrary.openCardSharePopup(0, 'first');
-  await expect(adsLibrary.shareLinkInput).not.toBeVisible();
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
-  await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
-  await adsLibrary.closeSharePopup();
+  test.beforeEach(async () => {
+    const found = await adsLibrary.findFreshSharePopup();
+    test.skip(!found, 'No ad found whose share link has not been generated yet');
+  });
 
-  // ── Reopen Ad 3 → server-persisted link and state retained ───────────────
-  await adsLibrary.searchAd(process.env.SHARE_LIBRARY_ID_3);
-  await adsLibrary.waitForFilter();
-  await adsLibrary.openCardSharePopup(0, 'first');
-  await expect(adsLibrary.shareLinkInput).toBeVisible();
-  expect(await adsLibrary.getGeneratedShareLink()).toBe(savedLink);
-  await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
-  await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
-  await expect(adsLibrary.shareActionBtn).toBeDisabled();
-  await adsLibrary.closeSharePopup();
+  test('Share popup - generating a link returns a valid URL', async () => {
+    await adsLibrary.generateShareLink();
+
+    expect(await adsLibrary.getGeneratedShareLink()).toMatch(/^https?:\/\/.+/);
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - generating a link reveals the link input and Copy button', async () => {
+    await adsLibrary.generateShareLink();
+
+    await expect(adsLibrary.shareLinkInput).toBeVisible();
+    await expect(adsLibrary.shareCopyBtn).toBeVisible();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - after generating, the action button becomes a disabled "Regenerate Link"', async () => {
+    await adsLibrary.generateShareLink();
+
+    await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+    await expect(adsLibrary.shareActionBtn).toBeDisabled();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - changing an option after generating re-enables Regenerate Link', async () => {
+    await adsLibrary.generateShareLink();
+    await expect(adsLibrary.shareActionBtn).toBeDisabled();
+
+    await adsLibrary.toggleShareUgcCheckbox();
+
+    await expect(adsLibrary.shareActionBtn).not.toBeDisabled();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - generated link input is readonly and typing does not change it', async ({ page }) => {
+    await adsLibrary.generateShareLink();
+    const link = await adsLibrary.getGeneratedShareLink();
+
+    await expect(adsLibrary.shareLinkInput).toHaveAttribute('readonly', '');
+
+    await adsLibrary.shareLinkInput.click();
+    await page.keyboard.type('EDIT_ATTEMPT');
+
+    expect(await adsLibrary.getGeneratedShareLink()).toBe(link);
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - generating with all three options selected returns a valid URL', async () => {
+    await adsLibrary.toggleShareUgcCheckbox();
+    await adsLibrary.toggleSharePromptsCheckbox();
+
+    await adsLibrary.generateShareLink();
+
+    expect(await adsLibrary.getGeneratedShareLink()).toMatch(/^https?:\/\/.+/);
+    await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+
+    await adsLibrary.closeSharePopup();
+  });
+});
+
+// ─── Persistence and no cross-ad carryover ────────────────────────────────────
+// Each test generates on its own freshly-discovered ad and reopens it WITHIN THE SAME
+// page session. Remembering {row, card} across tests does not work: every test logs in
+// again and the "Recently Added" grid can reorder between loads, so the same coordinates
+// can resolve to a different ad.
+test.describe('Share popup — link persistence and no carryover', () => {
+
+  test('Share popup - a generated link is still shown when the popup is reopened', async () => {
+    const target = await adsLibrary.findFreshSharePopup();
+    test.skip(!target, 'No ad found whose share link has not been generated yet');
+
+    await adsLibrary.generateShareLink();
+    const savedLink = await adsLibrary.getGeneratedShareLink();
+    expect(savedLink).toMatch(/^https?:\/\/.+/);
+    await adsLibrary.closeSharePopup();
+
+    // Same session, same card — the link must come back from the server
+    await adsLibrary.openSharePopupOnCard(target.row, target.card);
+
+    await expect(adsLibrary.shareLinkInput).toBeVisible();
+    expect(await adsLibrary.getGeneratedShareLink()).toBe(savedLink);
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - a reopened ad keeps the generated state (Regenerate Link, disabled)', async () => {
+    const target = await adsLibrary.findFreshSharePopup();
+    test.skip(!target, 'No ad found whose share link has not been generated yet');
+
+    await adsLibrary.generateShareLink();
+    await adsLibrary.closeSharePopup();
+
+    await adsLibrary.openSharePopupOnCard(target.row, target.card);
+
+    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareActionBtn).toContainText('Regenerate Link');
+    await expect(adsLibrary.shareActionBtn).toBeDisabled();
+
+    await adsLibrary.closeSharePopup();
+  });
+
+  test('Share popup - generating on one ad leaves other ads with no link', async () => {
+    const first = await adsLibrary.findFreshSharePopup();
+    test.skip(!first, 'No ad found whose share link has not been generated yet');
+
+    await adsLibrary.generateShareLink();
+    await adsLibrary.closeSharePopup();
+
+    // Any other ad still in default state proves the link did not leak across ads
+    const other = await adsLibrary.findFreshSharePopup();
+    test.skip(!other, 'No second fresh ad available to check for carryover');
+
+    await expect(adsLibrary.shareLinkInput).not.toBeVisible();
+    await expect(adsLibrary.shareActionBtn).toContainText('Generate Link');
+    await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+    await expect(adsLibrary.shareUgcCheckbox).not.toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
+
+    await adsLibrary.closeSharePopup();
+  });
 });

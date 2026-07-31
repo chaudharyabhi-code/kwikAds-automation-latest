@@ -9,6 +9,10 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  // A merchant may have no (or too few) saved competitors — skip rather than
+  // index into an empty list.
+  const cardCount = await competitor.countAllCards();
+  test.skip(cardCount < 2, `Needs at least 2 saved competitor(s); found ${cardCount}`);
 });
 
 test('Merge entry point - clicking Merge enters selection mode with checkboxes, banner, and Cancel', async () => {

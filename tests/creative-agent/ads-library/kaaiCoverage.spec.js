@@ -66,25 +66,28 @@ test('KAAI Coverage - clicking outside the popover closes it', async () => {
   await expect(adsLibrary.kaaiCoveragePopover).not.toBeVisible();
 });
 
-// ─── Test 6: Cross-check KAAI Analysis filter counts against popover values ───
-test('KAAI Coverage - KAAI Analysed filter count = Analyzed; Not Analysed count = Pending', async ({ page }) => {
-  // Get ground-truth counts from the popover
-  const { analyzed, pending } = await adsLibrary.getKaaiCoverageStats();
+// ─── Test 6a: "KAAI Analysed" filter count matches the popover's Analyzed ─────
+test('KAAI Coverage - KAAI Analysed filter count equals the popover Analyzed value', async ({ page }) => {
+  // Ground truth from the popover
+  const { analyzed } = await adsLibrary.getKaaiCoverageStats();
   await page.keyboard.press('Escape');
 
-  // Apply "KAAI Analysed" filter → results count should equal Analyzed
   await adsLibrary.selectKaaiOption('KAAI Analysed');
   const analysedFilterCount = await adsLibrary.getResultsCount();
 
-  // Apply "Not Analysed" filter → results count should equal Pending
+  console.log(`Popover Analyzed: ${analyzed} | KAAI Analysed filter count: ${analysedFilterCount}`);
+  expect(analysedFilterCount).toBe(analyzed);
+});
+
+// ─── Test 6b: "Not Analysed" filter count matches the popover's Pending ───────
+test('KAAI Coverage - Not Analysed filter count equals the popover Pending value', async ({ page }) => {
+  // Ground truth from the popover
+  const { pending } = await adsLibrary.getKaaiCoverageStats();
+  await page.keyboard.press('Escape');
+
   await adsLibrary.selectKaaiOption('Not Analysed');
   const notAnalysedFilterCount = await adsLibrary.getResultsCount();
 
-  console.table({
-    'Popover Analyzed': analyzed,   'KAAI Analysed filter count': analysedFilterCount,
-    'Popover Pending':  pending,    'Not Analysed filter count':  notAnalysedFilterCount,
-  });
-
-  expect.soft(analysedFilterCount).toBe(analyzed);
-  expect.soft(notAnalysedFilterCount).toBe(pending);
+  console.log(`Popover Pending: ${pending} | Not Analysed filter count: ${notAnalysedFilterCount}`);
+  expect(notAnalysedFilterCount).toBe(pending);
 });
