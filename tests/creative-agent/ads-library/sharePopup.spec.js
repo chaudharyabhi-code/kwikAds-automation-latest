@@ -23,12 +23,14 @@ test.beforeEach(async ({ page }) => {
 // show the default state on the very first run — after that those tests were asserting
 // against an ad that already had a link. Scanning finds a genuinely fresh ad every run.
 
-// ─── Default state of a never-shared ad (non-destructive: never generates) ─────
-test.describe('Share popup — default state of a fresh ad', () => {
+// ─── Popup chrome — state-agnostic, so no fresh-ad scan is needed ──────────────
+// Scanning for a fresh ad is expensive and gets slower over time (each generate test
+// permanently consumes one), so only the tests that genuinely depend on the
+// never-generated state pay that cost.
+test.describe('Share popup — chrome and dismissal (any ad)', () => {
 
   test.beforeEach(async () => {
-    const found = await adsLibrary.findFreshSharePopup();
-    test.skip(!found, 'No ad found whose share link has not been generated yet');
+    await adsLibrary.openSharePopupOnFirstCard();
   });
 
   test('Share popup - opens with title and description', async () => {
@@ -37,6 +39,32 @@ test.describe('Share popup — default state of a fresh ad', () => {
 
     await adsLibrary.closeSharePopup();
   });
+  test('Share popup - the three shareable options are listed', async () => {
+    await expect(adsLibrary.sharePopup).toContainText('Include in shared page');
+    await expect(adsLibrary.shareKaaiCheckbox).toBeVisible();
+    await expect(adsLibrary.shareUgcCheckbox).toBeVisible();
+    await expect(adsLibrary.sharePromptsCheckbox).toBeVisible();
+
+    await adsLibrary.closeSharePopup();
+  });
+  test('Share popup - closing via X hides the popup', async () => {
+    await adsLibrary.closeSharePopup();
+
+    await expect(adsLibrary.sharePopup).not.toBeVisible();
+  });
+});
+
+// ─── Default state of a never-shared ad (non-destructive: never generates) ─────
+test.describe('Share popup — default state of a fresh ad', () => {
+  // The fresh-ad scan opens/closes a popup per candidate; with the top of the grid
+  // already consumed it can examine 25+ ads before finding one.
+  test.setTimeout(300000);
+
+  test.beforeEach(async () => {
+    const found = await adsLibrary.findFreshSharePopup();
+    test.skip(!found, 'No ad found whose share link has not been generated yet');
+  });
+
 
   test('Share popup - default state has only KAAI Analysis checked', async () => {
     await expect(adsLibrary.shareKaaiCheckbox).toHaveClass(adsLibrary.CHECKED_CHECKBOX_CLASS);
@@ -54,24 +82,12 @@ test.describe('Share popup — default state of a fresh ad', () => {
     await adsLibrary.closeSharePopup();
   });
 
-  test('Share popup - the three shareable options are listed', async () => {
-    await expect(adsLibrary.sharePopup).toContainText('Include in shared page');
-    await expect(adsLibrary.shareKaaiCheckbox).toBeVisible();
-    await expect(adsLibrary.shareUgcCheckbox).toBeVisible();
-    await expect(adsLibrary.sharePromptsCheckbox).toBeVisible();
 
-    await adsLibrary.closeSharePopup();
-  });
-
-  test('Share popup - closing via X hides the popup', async () => {
-    await adsLibrary.closeSharePopup();
-
-    await expect(adsLibrary.sharePopup).not.toBeVisible();
-  });
 });
 
 // ─── Checkbox interactions on a fresh ad (non-destructive) ─────────────────────
 test.describe('Share popup — checkbox interactions', () => {
+  test.setTimeout(300000);
 
   test.beforeEach(async () => {
     const found = await adsLibrary.findFreshSharePopup();
@@ -113,6 +129,7 @@ test.describe('Share popup — checkbox interactions', () => {
 
 // ─── Generating a link (destructive: consumes one fresh ad per test) ───────────
 test.describe('Share popup — generating a link', () => {
+  test.setTimeout(300000);
 
   test.beforeEach(async () => {
     const found = await adsLibrary.findFreshSharePopup();
@@ -189,6 +206,7 @@ test.describe('Share popup — generating a link', () => {
 // again and the "Recently Added" grid can reorder between loads, so the same coordinates
 // can resolve to a different ad.
 test.describe('Share popup — link persistence and no carryover', () => {
+  test.setTimeout(300000);
 
   test('Share popup - a generated link is still shown when the popup is reopened', async () => {
     const target = await adsLibrary.findFreshSharePopup();
