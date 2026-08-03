@@ -28,24 +28,24 @@ test('Card 3-dot menu - opens with exactly 6 options: Share Creative, Download C
 
 
 // ─── Test 2: Copy Library ID copies the correct value ────────────────────────
+// The clipboard is read directly rather than pasted with Ctrl+V. A real paste races the
+// app's asynchronous clipboard write and reads the SHARED OS clipboard, so it regularly
+// picked up whatever was last copied on the machine (e.g. a file path from the editor).
 test('Card 3-dot menu - Copy Library ID copies value that matches Library ID shown in card detail', async ({ page }) => {
-  // Step 1: Open card detail modal and note the Library ID shown
-  await adsLibrary.openFirstCardDetail();
-  const libraryIdFromModal = await adsLibrary.getCardDetailLibraryId();
+  // Step 1: note the Library ID shown in the card detail modal
+  const libraryIdFromModal = await adsLibrary.getFirstAdLibraryId();
   console.log('Library ID from card detail:', libraryIdFromModal);
-  await adsLibrary.closeCardDetail();
 
-  // Step 2: Use 3-dot menu → Copy Library ID
+  // Step 2: record what the page writes to the clipboard
+  await adsLibrary.startCapturingClipboardWrites();
+
+  // Step 3: 3-dot menu → Copy Library ID
   await adsLibrary.openFirstCardMenu();
   await adsLibrary.clickCardMenuOption('Copy Library ID');
-  await adsLibrary.searchInputBox.click(); // Focus the input
 
-await page.keyboard.down('Control');
-await page.keyboard.down('Shift');
-await page.keyboard.press('V');
-await page.keyboard.up('Shift');
-await page.keyboard.up('Control');
-  const copiedId=await adsLibrary.searchValue();
+  // Step 4: the write is async — poll until it lands
+  const copiedId = await adsLibrary.waitForClipboardWrite();
+
   expect(copiedId).toBe(libraryIdFromModal);
 });
 
@@ -80,8 +80,11 @@ test('Card 3-dot menu - opening a second card menu closes the first one automati
   await adsLibrary.openFirstCardMenu();
   await expect(adsLibrary.cardDropdownMenu).toBeVisible();
 
-  // Open the second card's menu without explicitly closing the first
-  await adsLibrary.openNthCardMenu(1);
+  // Open ANOTHER card's menu without explicitly closing the first. The card is chosen at
+  // runtime: the grid renders 3 cards per row when maximised but only 1 in a headless CI
+  // window, so a fixed "second card in row 0" does not exist everywhere.
+  const opened = await adsLibrary.openAnotherCardMenu(0);
+  test.skip(opened === -1, 'Only one ad card menu is reachable at this viewport');
 
   // Only one dropdown should be visible — the first must have closed automatically
   await expect(adsLibrary.openCardDropdowns).toHaveCount(1);
@@ -92,8 +95,9 @@ test('Card 3-dot menu - scrolling the ad grid closes the open menu', async () =>
   await adsLibrary.openFirstCardMenu();
   await expect(adsLibrary.cardDropdownMenu).toBeVisible();
 
-  // Scroll the virtuoso ad grid downward
-  await adsLibrary.scrollAdGrid(400);
+  // Scroll a full screen so the menu's anchor card definitely leaves the viewport —
+  // a fixed pixel amount is not enough on a taller window (e.g. CI at 1080px).
+  await adsLibrary.scrollAdGridByOneScreen();
 
   await expect(adsLibrary.cardDropdownMenu).not.toBeVisible();
 });

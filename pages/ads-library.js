@@ -103,10 +103,17 @@ this.archivedAdBadges = this.adsLibraryContent
     this.saveToCollectionRows       = this.saveToCollectionModal.locator('[style*="cursor: pointer"]');
     // 3-dot (kebab) menu on the first ad card
     this.firstCardMenuButton        = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger');
+    // Every 3-dot trigger currently rendered in the grid. Indexing per ROW is unsafe: the
+    // grid renders 3 cards per row on a maximised window but only 1 in a headless CI
+    // window, so [data-index="0"] >> nth(1) simply does not exist there.
+    this.cardMenuTriggers           = this.adCardList.locator('button.ant-dropdown-trigger');
     // Scope to the OPEN dropdown: Ant Design leaves previously-opened menus in the DOM
     // marked .ant-dropdown-hidden, so a plain .ant-dropdown match accumulates stale
     // copies and trips strict mode once more than one card menu has been opened.
-    this.cardDropdownMenu           = this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)').filter({ hasText: 'View Meta Ad Link' });
+    // .first() matters: while one card menu closes and another opens, BOTH are briefly
+    // un-hidden, so a bare match resolves to 2 elements and every waitFor/click on it
+    // fails strict mode mid-transition.
+    this.cardDropdownMenu           = this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)').filter({ hasText: 'View Meta Ad Link' }).first();
     this.cardDropdownItems          = this.cardDropdownMenu.locator('li[role="menuitem"]');
     // Individual menu items. Each <li> carries data-menu-id="rc-menu-uuid-<random>-1-<key>";
     // the uuid changes per render but the trailing key is stable, so match on the suffix.
@@ -242,6 +249,15 @@ this.archivedAdBadges = this.adsLibraryContent
   // Scrolls the virtualised ad grid down by `px` so virtuoso renders the next rows
   async scrollAdGrid(px = 400) {
     await this.virtualizedGridScroller.evaluate((el, y) => el.scrollBy({ top: y, behavior: 'instant' }), px);
+  }
+
+  // Scrolls the ad grid down by a full screen of its own height.
+  // Preferred over a fixed pixel amount when the point is to move a card OUT of view: a
+  // 400px scroll clears a row on a short window but not on a tall one, so behaviour tied
+  // to the anchor leaving the viewport differed between local and CI.
+  async scrollAdGridByOneScreen() {
+    await this.virtualizedGridScroller.evaluate(
+      el => el.scrollBy({ top: el.clientHeight, behavior: 'instant' }));
   }
 
   // Ant Design's checkbox label swallows normal clicks, so toggle via the inner box
@@ -405,11 +421,36 @@ this.archivedAdBadges = this.adsLibraryContent
   }
 
   // Opens the 3-dot menu on the Nth card in the first Virtuoso row (0-based)
+  // Opens the Nth 3-dot menu in the grid (grid-wide index, not per row).
   async openNthCardMenu(n) {
-    const btn = this.adCardList.locator('[data-index="0"]').locator('button.ant-dropdown-trigger').nth(n);
+    const btn = this.cardMenuTriggers.nth(n);
     await btn.scrollIntoViewIfNeeded();
     await btn.click();
-    await this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden)').waitFor({ state: 'visible' });
+    await this.cardDropdownMenu.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  // Opens a DIFFERENT card's 3-dot menu than `excludeIndex`, picking one that is not
+  // currently covered by the open menu (which would otherwise swallow the click).
+  // Returns the index used, or -1 when no other trigger is reachable.
+  async openAnotherCardMenu(excludeIndex = 0) {
+    const total = await this.cardMenuTriggers.count();
+    for (let i = 0; i < total; i++) {
+      if (i === excludeIndex) continue;
+      const trigger = this.cardMenuTriggers.nth(i);
+
+      const reachable = await trigger.evaluate(el => {
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false;
+        const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !!top && (el === top || el.contains(top));
+      }).catch(() => false);
+      if (!reachable) continue;
+
+      await trigger.click({ timeout: 15000 });
+      await this.openCardDropdowns.first().waitFor({ state: 'visible', timeout: 10000 });
+      return i;
+    }
+    return -1;
   }
 
   async clickCardMenuOption(text) {
@@ -422,6 +463,52 @@ this.archivedAdBadges = this.adsLibraryContent
     // Click at y=100 inside the white card to land on the image area, away from corner buttons
     await firstCard.locator('div[style*="rgb(255, 255, 255)"]').first().click({ position: { x: 100, y: 100 } });
     await this.cardDetailModal.waitFor({ state: 'visible' });
+  }
+
+  // ── Clipboard (for "Copy Library ID") ────────────────────────────────────────
+  // Verifying a copy by pasting with Ctrl+V is unreliable: it races the app's asynchronous
+  // clipboard write, and it reads the SHARED OS clipboard, so it regularly picked up
+  // whatever was last copied on the machine (a file path from the editor, for instance).
+  // navigator.clipboard.readText() is no better — it needs document focus and can be
+  // blocked outright, returning empty.
+  //
+  // Instead, hook the clipboard APIs and record what the page itself writes. That is the
+  // behaviour under test ("Copy Library ID copies the right value") and it is fully
+  // deterministic. Install this BEFORE triggering the copy.
+  async startCapturingClipboardWrites() {
+    await this.page.evaluate(() => {
+      window.__clipWrites = [];
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
+        navigator.clipboard.writeText = (text) => {
+          window.__clipWrites.push(String(text));
+          return orig(text).catch(() => {});   // ignore OS-level permission failures
+        };
+      }
+      // Fallback for the older textarea + execCommand('copy') technique
+      const origExec = document.execCommand.bind(document);
+      document.execCommand = (cmd, ...rest) => {
+        if (String(cmd).toLowerCase() === 'copy') {
+          const active = document.activeElement;
+          if (active && 'value' in active) window.__clipWrites.push(String(active.value));
+          else window.__clipWrites.push(String(window.getSelection() || ''));
+        }
+        return origExec(cmd, ...rest);
+      };
+    });
+  }
+
+  // Polls until the page has written something to the clipboard; returns that value.
+  async waitForClipboardWrite(timeout = 10000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const v = await this.page
+        .evaluate(() => (window.__clipWrites || []).filter(Boolean).slice(-1)[0] || '')
+        .catch(() => '');
+      if (v.trim()) return v.trim();
+      await this.page.waitForTimeout(200);
+    }
+    return '';
   }
 
   // Opens the first ad's detail modal, reads its Library ID, and closes the modal again.
@@ -780,6 +867,13 @@ this.archivedAdBadges = this.adsLibraryContent
     return (await this.shareActionBtn.innerText()).includes('Generate Link');
   }
 
+  // Opens the Share Creative popup on the first card, whatever its state. Use this for
+  // assertions that do not care whether a link has been generated — it avoids the cost of
+  // scanning for a fresh ad.
+  async openSharePopupOnFirstCard() {
+    await this.openSharePopupOnCard(0, 0);
+  }
+
   // Scans the ad grid for the first ad whose Share Creative popup is still in its
   // default (never-generated) state and LEAVES THAT POPUP OPEN.
   // Returns { row, card } for the ad found, or null if none was found.
@@ -791,22 +885,51 @@ this.archivedAdBadges = this.adsLibraryContent
   // maxRows is deliberately generous: every test that generates a link consumes one
   // fresh ad, so over repeated runs the ads near the top of the grid all end up with
   // links and the scan has to reach further down to find an unused one.
-  async findFreshSharePopup({ maxRows = 20 } = {}) {
-    for (let row = 0; row < maxRows; row++) {
-      const cards = this.getCardsInRow(row);
-      let count = await cards.count();
+  async findFreshSharePopup({ startRow = 12, maxScrolls = 30 } = {}) {
+    // Start BELOW the top of the grid. Every test that generates a link permanently
+    // consumes that ad, so repeated runs leave the first rows with no fresh ads — scanning
+    // from row 0 re-walks a growing dead zone every time (measured: 25+ ads, >2 minutes).
+    // Falls back to the top if the deeper region yields nothing.
+    const visited = new Set();
+    const deep = await this._scanForFreshShareAd(startRow, maxScrolls, visited);
+    if (deep) return deep;
+    return this._scanForFreshShareAd(0, maxScrolls, visited);
+  }
 
-      if (count === 0) {
-        // Row not rendered yet — scroll to let virtuoso mount the next batch
-        await this.scrollAdGrid(700);
-        count = await cards.count();
-        if (count === 0) continue;
-      }
+  // Scans for an ad whose share popup is still in default state, leaving that popup OPEN.
+  // Works off the rows virtuoso has ACTUALLY mounted rather than assuming a row height:
+  // jumping to `row * 700px` can land where no [data-index] node exists, in which case a
+  // naive scan silently finds nothing.
+  async _scanForFreshShareAd(startRow, maxScrolls, visited = new Set()) {
+    if (startRow > 0) {
+      await this.virtualizedGridScroller
+        .evaluate((el, r) => { el.scrollTop = r * 700; }, startRow)
+        .catch(() => {});
+      await this.page.waitForTimeout(600);
+    } else {
+      await this.virtualizedGridScroller.evaluate(el => { el.scrollTop = 0; }).catch(() => {});
+      await this.page.waitForTimeout(600);
+    }
 
-      for (let c = 0; c < count; c++) {
-        await this.openSharePopupOnCard(row, c);
-        if (await this.isSharePopupFresh()) return { row, card: c };
-        await this.closeSharePopup();
+    for (let step = 0; step < maxScrolls; step++) {
+      const rows = (await this.adCardList.locator('[data-index]')
+        .evaluateAll(els => els.map(e => Number(e.getAttribute('data-index'))))
+        .catch(() => []))
+        .filter(n => Number.isFinite(n))
+        .sort((a, b) => a - b);
+
+      for (const row of rows) {
+        if (visited.has(row)) continue;
+        visited.add(row);
+
+        const count = await this.getCardsInRow(row).count();
+        for (let c = 0; c < count; c++) {
+          await this.openSharePopupOnCard(row, c);
+          const fresh = await this.isSharePopupFresh();
+          console.log(`    [scan] row ${row} card ${c} -> ${fresh ? 'FRESH' : 'has link'}`);
+          if (fresh) return { row, card: c };
+          await this.closeSharePopup();
+        }
       }
       await this.scrollAdGrid(700);
     }

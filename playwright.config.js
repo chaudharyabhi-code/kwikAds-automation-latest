@@ -12,6 +12,13 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
+/* In headless mode the browser window defaults to 800x600. With `viewport: null` the page
+   inherits that, so CI renders the ad grid at ONE card per row (locally, maximised, it is
+   three) and most content sits below the fold — layout-dependent tests then behave nothing
+   like a local run. Pin a realistic desktop viewport in CI; keep the real maximised window
+   locally so headed debugging still uses the full screen. */
+const VIEWPORT = process.env.CI ? { width: 1920, height: 1080 } : null;
+
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
@@ -19,7 +26,7 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 0 : 0,
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 4 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
@@ -35,7 +42,7 @@ export default defineConfig({
     // baseURL: 'http://localhost:3000',
     screenshot: 'only-on-failure',
     headless: !!process.env.CI,
-    viewport: null,
+    viewport: VIEWPORT,
     ignoreHTTPSErrors: true,
     launchOptions: {
       slowMo: 500,
@@ -63,17 +70,34 @@ export default defineConfig({
       testMatch: 'tests/competitor.setup.js',
       use: {
         ...devices['Desktop Chrome'],
-        viewport: null,
+        viewport: VIEWPORT,
         deviceScaleFactor: undefined,
         storageState: '.auth/user.json',
       },
       dependencies: ['setup'],
     },
+    /* Everything except the Competitors tab — no competitor seeding needed, so these do
+       not pay for it. */
     {
       name: 'chromium',
+      testIgnore: ['**/competitor/**', '**/*.setup.js'],
       use: {
         ...devices['Desktop Chrome'],
-        viewport: null,
+        viewport: VIEWPORT,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+    /* Competitors tab only — these need saved competitors to exist, so this is the only
+       project that depends on the seeder. Playwright prunes a project with no matching
+       tests, so seeding is skipped when you run e.g. just an ads-library spec. */
+    {
+      name: 'chromium-competitor',
+      testMatch: '**/competitor/**/*.spec.js',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: VIEWPORT,
         deviceScaleFactor: undefined,
         storageState: '.auth/user.json',
       },
