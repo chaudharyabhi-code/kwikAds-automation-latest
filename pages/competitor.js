@@ -39,7 +39,10 @@ export class Competitor {
     this.emptySearchResult = this.adsLibraryContent.getByText(/No competitors found matching your search/i);
 
     // Success toast (Ant Design global message)
-    this.successToast = this.page.locator('.ant-message-notice-success');
+    // .first(): Ant stacks notices, so two overlapping success toasts (a delete landing
+    // while a sync toast is still on screen) made a bare locator trip strict mode —
+    // "resolved to 2 elements" — even though the expected toast was present.
+    this.successToast = this.page.locator('.ant-message-notice-success').first();
 
     // ── Merge selection mode ─────────────────────────────────────────────────
     // Cancel button that appears in the header while in merge selection mode

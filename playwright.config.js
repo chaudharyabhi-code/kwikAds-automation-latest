@@ -40,6 +40,14 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
     // baseURL: 'http://localhost:3000',
+    /* Both of these default to 0 = "no limit, bounded only by the test timeout". That is
+       what turned several failures into bare "Test timeout of 120000ms exceeded" with no
+       indication of what was stuck: one click() on a permanently-disabled button, or one
+       check() on a checkbox that never became actionable, silently consumed the entire
+       per-test budget. Bounding them makes the offending action fail fast and name itself
+       in the call log, and leaves the remaining budget for the rest of the test. */
+    actionTimeout: 20000,
+    navigationTimeout: 45000,
     screenshot: 'only-on-failure',
     headless: !!process.env.CI,
     viewport: VIEWPORT,

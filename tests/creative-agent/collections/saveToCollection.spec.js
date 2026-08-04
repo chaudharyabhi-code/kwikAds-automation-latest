@@ -155,7 +155,17 @@ test.describe.serial('Create a new collection inline via "+ New Collection" in t
     await openSaveToCollectionModal();
 
     const countAfter = await collections.getSaveToCollectionCount();
-    expect(countAfter).toBe(collectionCountBefore + 1);
+
+    // NOT toBe(collectionCountBefore + 1). The collection list is one per-merchant resource
+    // and the other specs in this directory create/delete collections from parallel workers,
+    // so the absolute total drifts by however many they add mid-run — observed 11 -> 14
+    // where this file created exactly one. This describe being .serial only orders ITS OWN
+    // tests; it cannot hold the rest of the suite still.
+    // Assert what the test is actually about: the inline-created collection is now offered,
+    // and the total grew.
+    await expect(collections.saveToCollectionItem.filter({ hasText: INLINE_NAME }).first())
+      .toBeVisible();
+    expect(countAfter).toBeGreaterThan(collectionCountBefore);
 
     await collections.saveToCollectionModalCloseBtn.click();
   });

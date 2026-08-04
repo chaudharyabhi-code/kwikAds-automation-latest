@@ -157,7 +157,9 @@ this.archivedAdBadges = this.adsLibraryContent
     // Competitors page — search input and page-level loader
     this.competitorSearchInput     = this.adsLibraryContent.locator('input[placeholder="Search competitor brands..."]');
     // Success toast (Ant Design global message)
-    this.successToast              = this.page.locator('.ant-message-notice-success');
+    // .first(): Ant stacks notices, so overlapping success toasts trip strict mode on a
+    // bare locator. Only ever used with toBeVisible()/waitFor, never counted.
+    this.successToast              = this.page.locator('.ant-message-notice-success').first();
     // Remove Competitor confirmation modal
     this.removeCompetitorModal     = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Remove' });
     this.removeCompetitorConfirmBtn = this.removeCompetitorModal.locator('button').filter({ hasText: /^Remove$/ });
@@ -192,6 +194,12 @@ this.archivedAdBadges = this.adsLibraryContent
     // Only visible after a link has been generated
     this.shareLinkInput        = this.sharePopup.locator('input[readonly]');
     this.shareCopyBtn          = this.sharePopup.locator('button').filter({ hasText: 'Copy' });
+    // Spinner/skeleton shown inside the popup while this ad's share state loads from the
+    // server. The rest of the app uses span[aria-label="loading"]; .ant-spin-spinning
+    // covers the Ant default in case this popup renders that instead. .first() keeps
+    // waitFor('hidden') working when neither is present (matches nothing → already hidden).
+    this.sharePopupLoader      = this.sharePopup
+      .locator('span[aria-label="loading"], .ant-spin-spinning').first();
   }
 
   // ── Ad card structure (locator factories) ─────────────────────────────────────
@@ -839,18 +847,30 @@ this.archivedAdBadges = this.adsLibraryContent
 
     await this.cardMenuShareCreative.click();
     await this.sharePopup.waitFor({ state: 'visible' });
+    await this.waitForSharePopupSettled();
   }
 
   // Opens the Share Creative popup on a specific card (row + position within that row).
   async openSharePopupOnCard(row = 0, cardIndex = 0) {
-    // The grid is virtualised: only rows near the viewport are mounted, so
-    // [data-index="N"] for a row further down does not exist until we scroll there.
-    // Reopening a card by remembered coordinates therefore needs this first.
-    if (row > 0) {
-      await this.virtualizedGridScroller.evaluate((el, r) => { el.scrollTop = r * 700; }, row);
+    const rowLocator = this.getAdRow(row);
+
+    // The grid is virtualised: only rows near the viewport are mounted, so [data-index="N"]
+    // for a row further down does not exist until we scroll there.
+    //
+    // Prefer scrolling the real element into view when it IS mounted. The old
+    // unconditional `scrollTop = row * 700` hard-codes a row height, so on any row whose
+    // actual height differs the jump lands somewhere else and the row never becomes
+    // visible — that is what timed out on row 17 and aborted the whole fresh-ad scan.
+    // Keep the estimate only as a fallback for reopening a row that has been unmounted.
+    if (await rowLocator.count().catch(() => 0) > 0) {
+      await rowLocator.scrollIntoViewIfNeeded().catch(() => {});
+    } else if (row > 0) {
+      await this.virtualizedGridScroller
+        .evaluate((el, r) => { el.scrollTop = r * 700; }, row)
+        .catch(() => {});
       await this.page.waitForTimeout(400);
     }
-    await this.getAdRow(row).waitFor({ state: 'visible', timeout: 15000 });
+    await rowLocator.waitFor({ state: 'visible', timeout: 15000 });
 
     const card = this.getCardsInRow(row).nth(cardIndex);
     await card.scrollIntoViewIfNeeded();
@@ -858,13 +878,70 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.cardDropdownMenu.waitFor({ state: 'visible' });
     await this.cardMenuShareCreative.click();
     await this.sharePopup.waitFor({ state: 'visible' });
+    await this.waitForSharePopupSettled();
+  }
+
+  // Waits until the popup's contents reflect the SERVER state for this ad.
+  //
+  // Why this exists: the modal becomes visible showing its DEFAULT skeleton — "Generate
+  // Link", enabled, no link input — and only re-renders to "Regenerate Link" + disabled +
+  // link input once the ad's share state arrives. Waiting on visibility alone therefore
+  // sampled that pre-load window, so isSharePopupFresh() reported ads that ALREADY had a
+  // link as fresh. Every share-popup failure traced back to this: the freshness scan
+  // handed already-shared ads to tests that require a never-generated one.
+  //
+  // The loader wait handles it when the popup renders a spinner. There is no guarantee it
+  // does, so the settle is confirmed independently: hold until label + disabled + link
+  // visibility read identically several polls running.
+  async waitForSharePopupSettled({ timeout = 15000, stableReads = 2, interval = 300 } = {}) {
+    await this.sharePopupLoader.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+
+    const deadline = Date.now() + timeout;
+    let previous = null;
+    let matches = 0;
+
+    while (Date.now() < deadline) {
+      const current = await this._readShareActionState();
+      if (current !== null && current === previous) {
+        if (++matches >= stableReads) return;
+      } else {
+        matches = 0;
+      }
+      previous = current;
+      await this.page.waitForTimeout(interval);
+    }
+    // Fall through rather than throw: the caller's own assertion gives a far better
+    // failure message than "popup never settled" would.
+  }
+
+  // Single snapshot of everything in the popup that flips when the server state lands.
+  // Returns null mid-render (the popup re-mounts, briefly resolving to nothing) so the
+  // settle loop treats that as "not stable yet" instead of crashing.
+  async _readShareActionState() {
+    try {
+      const [label, disabled, hasLink] = await Promise.all([
+        this.shareActionBtn.innerText(),
+        this.shareActionBtn.isDisabled(),
+        this.shareLinkInput.isVisible(),
+      ]);
+      return `${label.trim()}|${disabled}|${hasLink}`;
+    } catch {
+      return null;
+    }
   }
 
   // True when the OPEN share popup is in its never-generated default state:
   // no link yet and the action button still reads "Generate Link".
+  // Assumes the popup has settled — openSharePopupOnCard() guarantees that.
   async isSharePopupFresh() {
     if (await this.shareLinkInput.isVisible()) return false;
-    return (await this.shareActionBtn.innerText()).includes('Generate Link');
+
+    // NOT includes('Generate Link'): "Regenerate Link" contains that substring apart from
+    // the capital G, so the old check told the two labels apart purely by accident of
+    // casing. One copy tweak ("Generate link", "REGENERATE LINK") and every already-shared
+    // ad would have read as fresh. Match case-insensitively and rule out "regenerate".
+    const label = (await this.shareActionBtn.innerText()).trim().toLowerCase();
+    return label.includes('generate link') && !label.includes('regenerate');
   }
 
   // Opens the Share Creative popup on the first card, whatever its state. Use this for
@@ -918,22 +995,76 @@ this.archivedAdBadges = this.adsLibraryContent
         .filter(n => Number.isFinite(n))
         .sort((a, b) => a - b);
 
-      for (const row of rows) {
-        if (visited.has(row)) continue;
+      const unvisited = rows.filter(row => !visited.has(row));
+
+      for (const row of unvisited) {
         visited.add(row);
 
-        const count = await this.getCardsInRow(row).count();
+        const count = await this.getCardsInRow(row).count().catch(() => 0);
         for (let c = 0; c < count; c++) {
-          await this.openSharePopupOnCard(row, c);
-          const fresh = await this.isSharePopupFresh();
+          // A row near the end of the grid can fail to mount within the open timeout —
+          // that means "cannot inspect this candidate", NOT "this run is broken". Letting
+          // it propagate aborted the whole scan, so findFreshSharePopup() threw instead of
+          // returning null and the caller never got to skip.
+          try {
+            await this.openSharePopupOnCard(row, c);
+          } catch {
+            console.log(`    [scan] row ${row} card ${c} -> could not open, skipping`);
+            await this.closeSharePopup().catch(() => {});
+            continue;
+          }
+
+          const fresh = await this.isSharePopupFresh().catch(() => false);
           console.log(`    [scan] row ${row} card ${c} -> ${fresh ? 'FRESH' : 'has link'}`);
           if (fresh) return { row, card: c };
-          await this.closeSharePopup();
+          await this.closeSharePopup().catch(() => {});
         }
       }
-      await this.scrollAdGrid(700);
+
+      // Running out of MOUNTED rows is not running out of ads. The grid is paginated —
+      // reaching the bottom fires a loader that appends the next batch (~30 more) — so the
+      // scan pulls the next page in and keeps going. Only a grid that genuinely has nothing
+      // left to load ends the scan.
+      if (!(await this._loadMoreAds())) break;
     }
     return null;
+  }
+
+  // Scrolls the ad grid to the bottom to trigger the next page, then waits for the batch to
+  // land. Returns false only when the grid has nothing more to give — either the "X of Y
+  // ads" counter says everything is loaded, or X stops growing.
+  //
+  // The counter is the reliable signal here. Watching mounted [data-index] nodes instead is
+  // wrong: virtuoso unmounts rows that scroll out of view, so "no new rows mounted" happens
+  // constantly while there is still plenty left to load.
+  async _loadMoreAds(timeout = 20000) {
+    const before = await this.getResultsLoadedAndTotal().catch(() => null);
+
+    if (before && Number.isFinite(before.loaded) && Number.isFinite(before.total)
+        && before.loaded >= before.total) {
+      return false;
+    }
+
+    await this.virtualizedGridScroller
+      .evaluate(el => { el.scrollTop = el.scrollHeight; })
+      .catch(() => {});
+
+    // No counter to poll — give the batch a moment and let the caller keep going.
+    if (!before || !Number.isFinite(before.loaded)) {
+      await this.page.waitForTimeout(1500);
+      return true;
+    }
+
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      await this.page.waitForTimeout(500);
+      const now = await this.getResultsLoadedAndTotal().catch(() => null);
+      if (now && Number.isFinite(now.loaded) && now.loaded > before.loaded) {
+        console.log(`    [scan] loaded ${before.loaded} -> ${now.loaded} of ${now.total} ads`);
+        return true;
+      }
+    }
+    return false;
   }
 
   async closeSharePopup() {
@@ -952,16 +1083,46 @@ this.archivedAdBadges = this.adsLibraryContent
   }
 
   // Clicks "Generate Link" / "Regenerate Link" and waits for the link input to appear.
-  // Once a link exists the button reads "Regenerate Link" and stays DISABLED until an
-  // option changes, so toggle one off/on first to re-enable it. Without this the tests
-  // only pass on the very first run against a fresh ad.
   async generateShareLink() {
+    // Read the button only once the server state has landed — otherwise the isDisabled()
+    // check below samples the pre-load skeleton and always sees "enabled".
+    await this.waitForSharePopupSettled();
+
+    // Once a link exists the button reads "Regenerate Link" and stays disabled until the
+    // selection DIFFERS from what was last generated. This used to toggle UGC off and
+    // straight back on, which restores the original selection — so the app's change check
+    // never fired, the button stayed disabled, and the unbounded click() below blocked for
+    // the full 300s test timeout. Toggle once and leave the selection changed.
     if (await this.shareActionBtn.isDisabled()) {
       await this.toggleShareUgcCheckbox();
-      await this.toggleShareUgcCheckbox();
+      await this._waitForShareActionEnabled();
     }
-    await this.shareActionBtn.click();
-    await this.shareLinkInput.waitFor({ state: 'visible' });
+
+    // Bounded, and diagnosed. click() waits for the element to become enabled with no
+    // timeout of its own, so on a disabled button it inherits the test timeout and reports
+    // only "Test timeout of 300000ms exceeded" — no clue which actionability check failed.
+    if (await this.shareActionBtn.isDisabled()) {
+      const label = (await this.shareActionBtn.innerText()).trim();
+      throw new Error(
+        `Share popup action button is still disabled, so no link can be generated. ` +
+        `Button reads "${label}". This ad most likely already has a share link and ` +
+        `changing an option did not re-enable the button.`);
+    }
+
+    await this.shareActionBtn.click({ timeout: 15000 });
+    await this.shareLinkInput.waitFor({ state: 'visible', timeout: 30000 });
+  }
+
+  // The checkbox toggles fire a synthetic el.click() via evaluate(), which returns before
+  // React re-renders — so the button's disabled state must be polled, not read on the same
+  // tick. Returns false on timeout and lets the caller raise the error.
+  async _waitForShareActionEnabled(timeout = 5000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if (!(await this.shareActionBtn.isDisabled())) return true;
+      await this.page.waitForTimeout(200);
+    }
+    return false;
   }
 
   async getGeneratedShareLink() {

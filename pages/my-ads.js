@@ -238,6 +238,41 @@ export class MyAds {
     await this.syncKaaiModal.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
   }
 
+  // Arms a MutationObserver that records whether the modal's Sync button EVER carries
+  // Ant's .ant-btn-loading class, then returns a getter for the verdict.
+  //
+  // Why not just expect(loadingBtn).toBeVisible() after clicking: the loading class only
+  // exists while the sync request is in flight, and the modal unmounts as soon as it
+  // resolves. That request came back in ~600ms, so by the time a post-click assertion
+  // started polling the class — and often the whole modal — was already gone, failing with
+  // "element(s) not found". An observer installed BEFORE the click cannot miss the change,
+  // which makes the assertion deterministic instead of a race against the backend.
+  //
+  // Must be called before clicking Sync.
+  async watchForSyncKaaiLoadingState() {
+    await this.page.evaluate(() => {
+      window.__kwikSawSyncLoading = false;
+      const hit = () => !!document.querySelector(
+        '.ant-modal-confirm button.ant-btn-primary.ant-btn-loading');
+      if (hit()) window.__kwikSawSyncLoading = true;
+      const observer = new MutationObserver(() => {
+        if (hit()) window.__kwikSawSyncLoading = true;
+      });
+      observer.observe(document.body, {
+        subtree: true, childList: true, attributes: true, attributeFilter: ['class'],
+      });
+      window.__kwikSyncLoadingObserver = observer;
+    });
+
+    return async () => {
+      const seen = await this.page.evaluate(() => {
+        window.__kwikSyncLoadingObserver?.disconnect();
+        return window.__kwikSawSyncLoading === true;
+      });
+      return seen;
+    };
+  }
+
   // Returns { loaded: X, total: Y } parsed from "X of Y ads"
   async getResultsLoadedAndTotal() {
     let text = '';

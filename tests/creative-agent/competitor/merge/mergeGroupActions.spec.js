@@ -61,7 +61,11 @@ test.describe.serial('Merged group - Delete flow', () => {
     await expect(competitor.successToast).toBeVisible();
     await expect(competitor.successToast).toContainText('deleted');
 
-    const countAfter = await competitor.getSavedCount();
-    expect(countAfter).toBe(countBefore - 1);
+    // Poll rather than read once: the "Saved Competitors (N)" heading is repainted by a
+    // refetch that lands AFTER the success toast, so an immediate read still returned the
+    // pre-delete value (observed countAfter 2 where countBefore-1 was 1).
+    await expect
+      .poll(() => competitor.getSavedCount(), { timeout: 15000 })
+      .toBe(countBefore - 1);
   });
 });

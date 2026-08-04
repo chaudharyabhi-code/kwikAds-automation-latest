@@ -63,9 +63,12 @@ test('My Ads - clicking Draft Creatives sub-tab shows only draft ads or empty st
   console.log(`Draft Creatives total: ${draftTotal}`);
 
   if (draftTotal === 0) {
-    // No draft ads exist — empty state must be visible, card list must not be present
+    // No draft ads exist — empty state must be visible, card list must not be present.
+    // toHaveCount(0), not (1): adCardList is the virtuoso CONTAINER, and "not present"
+    // means zero of them. The old toHaveCount(1) asserted the container still existed,
+    // which contradicts the comment and fails exactly when the empty state is correct.
     await expect(myAds.emptyState).toBeVisible();
-    await expect(myAds.adCardList).toHaveCount(1);
+    await expect(myAds.adCardList).toHaveCount(0);
   } else {
     // Draft ads exist — card list must be visible and count is positive
     await expect(myAds.adCardList).toBeVisible();
@@ -160,8 +163,8 @@ test('My Ads - Draft Creatives empty state shows correct message when no drafts 
   await expect(myAds.myAdsTab).toBeVisible();
   await expect(myAds.subTabDraft).toBeVisible();
 
-  // Ad card list must not render any cards
-  await expect(myAds.adCardList).toHaveCount(1);
+  // Ad card list must not render any cards — zero virtuoso containers, not one.
+  await expect(myAds.adCardList).toHaveCount(0);
 
   console.log('Empty state correctly displayed for Draft Creatives with 0 ads');
 });

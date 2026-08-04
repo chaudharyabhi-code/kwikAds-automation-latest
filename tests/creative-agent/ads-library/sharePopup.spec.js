@@ -4,6 +4,18 @@ import { AdsLibrary } from '../../../pages/ads-library';
 
 let adsLibrary;
 
+// Opt this file out of the config's fullyParallel.
+//
+// Every describe below competes for the same scarce, server-side mutable resource: ads that
+// have never had a share link generated. Under fullyParallel the blocks ran in 4 different
+// workers, and findFreshSharePopup() is deterministic (same startRow, same row order in
+// every worker) — so they all converged on the SAME "first fresh ad", while the
+// "generating a link" block mutated the very ad the read-only blocks were asserting on.
+//
+// 'default', not 'serial': serial would additionally SKIP every remaining test in the file
+// after the first failure, hiding real regressions behind one flake.
+test.describe.configure({ mode: 'default' });
+
 // Shared setup: log in and land on the Ad Library grid.
 test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();

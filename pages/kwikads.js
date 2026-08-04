@@ -44,7 +44,7 @@ export class KwiksAdsCreativeAgent {
     }
 
     await this.page.goto(process.env.BASE_URL);
-    await this.page.waitForLoadState('networkidle');
+    await this._settleNetwork();
 
     if (process.env.KA_BASE_URL) {
       await this.page.context().addCookies([{
@@ -53,7 +53,7 @@ export class KwiksAdsCreativeAgent {
         url:   process.env.BASE_URL,
       }]);
       await this.page.reload();
-      await this.page.waitForLoadState('networkidle');
+      await this._settleNetwork();
     }
 
     // The "Start Your Payments KYC" promo modal appears intermittently and at an
@@ -67,7 +67,21 @@ export class KwiksAdsCreativeAgent {
     // dismiss the modal if it rendered.
     await this.dismissKycModalIfPresent();
     await this.navigateToCreativeAgent();
-    await this.page.waitForLoadState('networkidle');
+    await this._settleNetwork();
+  }
+
+  // Bounded, non-fatal replacement for a bare waitForLoadState('networkidle').
+  //
+  // goto() is the shared beforeEach for all 64 spec files and used to await networkidle
+  // four times with no timeout. On a dashboard with background polling, networkidle (500ms
+  // of zero requests) can stall indefinitely — and since it was unbounded, ONE stall ate
+  // the whole 120s test budget and surfaced as "Test timeout exceeded while running
+  // beforeEach" with nothing pointing at the cause.
+  //
+  // Best-effort by design: if the network never goes quiet, carry on. Every caller follows
+  // up with a real UI wait or assertion, which is the signal that actually matters.
+  async _settleNetwork(timeout = 15000) {
+    await this.page.waitForLoadState('networkidle', { timeout }).catch(() => {});
   }
 
   // Auto-dismisses the KYC promo modal whenever it becomes visible and would block an
@@ -86,7 +100,7 @@ export class KwiksAdsCreativeAgent {
   async dismissKycModalIfPresent() {
     await this.pageLoader.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
     await this.pageLoader.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle').catch(() => {});
+    await this._settleNetwork();
 
     try {
       await this.kycModalRemindLater.waitFor({ state: 'visible', timeout: 6000 });
@@ -113,13 +127,13 @@ export class KwiksAdsCreativeAgent {
     await this.page.waitForTimeout(500);
     await this.setMerchantButton.click();
     await this.merchantDialog.waitFor({ state: 'hidden' });
-    await this.page.waitForLoadState('networkidle');
+    await this._settleNetwork();
   }
 
   async navigateToCreativeAgent() {
     await this.kwidAdsSideBar.click();
     await this.createAgent.click();
-    await this.page.waitForLoadState('networkidle');
+    await this._settleNetwork();
   }
 }
 

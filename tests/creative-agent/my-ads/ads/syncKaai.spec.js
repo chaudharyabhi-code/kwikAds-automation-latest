@@ -59,14 +59,19 @@ test('My Ads - Sync KAAI: clicking Sync button shows loading state and triggers 
 
   await myAds.openSyncKaaiModal();
 
-  // Sync button in modal should show loading indicator after click
+  // Arm the loading-state watcher BEFORE clicking. The .ant-btn-loading class lives only
+  // for the duration of the request and the modal unmounts on completion, so a post-click
+  // assertion races the backend and loses on a fast response.
+  const sawLoadingState = await myAds.watchForSyncKaaiLoadingState();
+
   await myAds.syncKaaiModalSyncBtn.click();
-  const loadingBtn = myAds.syncKaaiModalLoadingBtn;
-  await expect(loadingBtn).toBeVisible({ timeout: 5000 });
 
   // Verify the sync API was actually invoked
   const syncRequest = await syncRequestPromise;
   expect(syncRequest).toBeTruthy();
+
+  // Sync button must have entered the loading state at some point after the click
+  expect(await sawLoadingState()).toBe(true);
 
   console.log('Sync KAAI API URL:', syncRequest.url());
 });

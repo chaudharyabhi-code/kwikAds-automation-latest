@@ -24,12 +24,16 @@ export class Collections {
     this.savedAdsCardDeleteBtn   = this.savedAdsCard.locator('[aria-label="delete"]');
     this.savedAdsCardAttribution = this.savedAdsCard.locator('div[title]');
 
-    // Success / error toasts
-    this.successToast = this.page.locator('.ant-message-notice-success');
-    this.errorToast   = this.page.locator('.ant-message-notice-error');
+    // Success / error toasts.
+    // .first() matters: Ant STACKS notices, so a flow that emits two (e.g. "collection
+    // created" + "ad saved") leaves two .ant-message-notice-success nodes in the DOM and a
+    // bare locator trips strict mode — toBeVisible() then fails with "resolved to 2
+    // elements" even though the toast is correct. Only ever asserted with toBeVisible().
+    this.successToast = this.page.locator('.ant-message-notice-success').first();
+    this.errorToast   = this.page.locator('.ant-message-notice-error').first();
     // Any toast regardless of severity — for flows where the app may report
     // either success or an informational "already added" message
-    this.anyToast     = this.page.locator('.ant-message-notice');
+    this.anyToast     = this.page.locator('.ant-message-notice').first();
     // Page-level loading spinner inside the Creative Agent shell
     this.pageSpinner  = this.adsLibraryContent.locator("span[aria-label='loading']").first();
 
