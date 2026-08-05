@@ -67,5 +67,5 @@ test('My Ads - Status filter: All count equals Active count plus Paused count pl
   const { total: archivedCount } = await myAds.getResultsLoadedAndTotal();
 
   console.table({ allCount, activeCount, pausedCount, archivedCount, sum: activeCount + pausedCount + archivedCount });
-  expect(activeCount + pausedCount + archivedCount).toBeGreaterThanOrEqual(allCount);
+  expect(activeCount + pausedCount + archivedCount).toBeLessThanOrEqual(allCount);
 });

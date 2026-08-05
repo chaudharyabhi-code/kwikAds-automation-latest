@@ -14,9 +14,10 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
-  mergedCard = await competitor.findMergedGroupCardIndex();
-  // competitor.setup.js seeds a merged group, so a missing one is a real failure, not a skip.
-  expect(mergedCard, 'no merged group card exists — competitor.setup.js should have seeded one').not.toBe(-1);
+  mergedCard = await competitor.ensureMergedGroup();
+  // ensureMergedGroup() creates one if the delete specs removed it, so -1 means fewer than 2
+  // competitors exist — a real failure, not a skip.
+  expect(mergedCard, 'could not establish a merged group — fewer than 2 saved competitors').not.toBe(-1);
 });
 
 test('Merged group - Sync button triggers sync popover', async () => {

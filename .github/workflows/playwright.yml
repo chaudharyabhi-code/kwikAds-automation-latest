@@ -33,7 +33,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH: 0
 
       - name: Run Playwright tests (shard ${{ matrix.shard }}/4)
-        run: npx playwright test --shard=${{ matrix.shard }}/4 --reporter=blob
+        run: npx playwright test --shard=${{ matrix.shard }}/4 
         env:
           CI: true
           PLAYWRIGHT_BROWSERS_PATH: 0

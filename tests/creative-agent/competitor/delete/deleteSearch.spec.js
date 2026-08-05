@@ -16,17 +16,24 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Deleted competitor - no longer appears in search results', async () => {
-  // Record brand name of card 1 (non-merged) before deleting
-  const brandName = await competitor.getCardName(1).innerText();
+  // Find a NON-merged card. Index 1 was hardcoded, but a seeded merged group can occupy it.
+  const cardIndex = await competitor.findPlainCardIndex();
+  expect(cardIndex, 'no non-merged competitor available to delete').not.toBe(-1);
 
-  // Delete card 1 and confirm
-  await competitor.deleteCompetitor(1);
+  const brandName = (await competitor.getCardName(cardIndex).innerText()).trim();
+  const countBefore = await competitor.getSavedCount();
+
+  await competitor.deleteCompetitor(cardIndex);
   await expect(competitor.removeCompetitorModal).toBeVisible();
   await competitor.removeCompetitorConfirmBtn.click();
-  await expect(competitor.successToast).toBeVisible();
+
+  // Wait on the durable outcome instead of the ~3s auto-dismissing toast, which the confirm
+  // click regularly outlives — that is why this failed with "element not found".
+  // delete.spec.js already covers the toast itself.
+  await expect.poll(() => competitor.getSavedCount(), { timeout: 15000 }).toBe(countBefore - 1);
 
   // Search for the deleted brand name
-  await competitor.search(brandName.trim());
+  await competitor.search(brandName);
 
   // Competitor cards list must not contain the deleted brand name as saved
   await expect(competitor.competitorCards).not.toContainText(brandName);
