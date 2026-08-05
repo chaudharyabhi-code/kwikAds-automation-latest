@@ -9,6 +9,8 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  // The badge only renders when a sync ran today — nothing to hover otherwise.
+  test.skip(!(await competitor.isSyncedToday()), 'No sync has run today — "Synced today" badge is not shown');
 });
 
 test('Synced today badge - hover tooltip shows current date in DD/MM/YY format', async () => {

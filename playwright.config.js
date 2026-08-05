@@ -19,6 +19,21 @@ dotenv.config({ path: path.resolve(__dirname, '.env') });
    locally so headed debugging still uses the full screen. */
 const VIEWPORT = process.env.CI ? { width: 1920, height: 1080 } : null;
 
+/* Competitor specs that MUTATE the shared saved-competitor list, or that need a merged group
+   to already exist. These run in their own project that DEPENDS on the read-only competitor
+   project, so Playwright finishes every read-only test before any deletion starts.
+
+   Without the split, the delete and merge specs ran concurrently with the merge-selection
+   specs across 4 workers and drained the list underneath them — seeding 5 and deleting 3 left
+   the selection tests skipping with "Needs at least 2 saved competitors; found 1". */
+const COMPETITOR_MUTATING = [
+  '**/competitor/delete/**/*.spec.js',
+  '**/competitor/merge/merge.spec.js',
+  '**/competitor/merge/mergeGroupActions.spec.js',
+  '**/competitor/merge/mergeViewData.spec.js',
+  '**/competitor/merge/mergedGroupCard.spec.js',
+];
+
 export default defineConfig({
   testDir: './tests',
   /* Run tests in files in parallel */
@@ -84,6 +99,20 @@ export default defineConfig({
       },
       dependencies: ['setup'],
     },
+    /* Seeds a collection that CONTAINS an ad before the suite runs. Collections and
+       Select-mode tests skipped wholesale without one ("No collection with at least one ad").
+       Idempotent: an already-populated merchant costs one page load. */
+    {
+      name: 'collection-setup',
+      testMatch: 'tests/collection.setup.js',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: VIEWPORT,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
     /* Everything except the Competitors tab — no competitor seeding needed, so these do
        not pay for it. */
     {
@@ -95,7 +124,7 @@ export default defineConfig({
         deviceScaleFactor: undefined,
         storageState: '.auth/user.json',
       },
-      dependencies: ['setup'],
+      dependencies: ['setup', 'collection-setup'],
     },
     /* Competitors tab only — these need saved competitors to exist, so this is the only
        project that depends on the seeder. Playwright prunes a project with no matching
@@ -103,6 +132,7 @@ export default defineConfig({
     {
       name: 'chromium-competitor',
       testMatch: '**/competitor/**/*.spec.js',
+      testIgnore: COMPETITOR_MUTATING,
       use: {
         ...devices['Desktop Chrome'],
         viewport: VIEWPORT,
@@ -110,6 +140,19 @@ export default defineConfig({
         storageState: '.auth/user.json',
       },
       dependencies: ['setup', 'competitor-setup'],
+    },
+    /* Deletes and merges, plus the specs that read a merged group. Depends on the read-only
+       competitor project, so nothing is still reading the list when these start consuming it. */
+    {
+      name: 'chromium-competitor-mutating',
+      testMatch: COMPETITOR_MUTATING,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: VIEWPORT,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup', 'competitor-setup', 'chromium-competitor'],
     },
 
 

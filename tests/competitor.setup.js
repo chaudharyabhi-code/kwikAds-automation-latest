@@ -4,9 +4,14 @@ import { AdsLibrary } from '../pages/ads-library';
 import { Competitor } from '../pages/competitor';
 
 // Minimum saved competitors the Competitors-tab suite needs.
-// The merge tests need 2; 5 leaves headroom for the destructive tests that delete or
-// merge cards away during a run.
-const MIN_COMPETITORS = 5;
+// The merge tests need 2-3; the surplus is headroom for the destructive delete and merge
+// tests, which run in parallel and consume cards while the merge tests are still reading them.
+const MIN_COMPETITORS = 8;
+
+// Seeding rounds. One pass is not enough: tagging a brand that is ALREADY a competitor adds
+// nothing, so a pass can finish having added fewer than intended. Each round re-counts on the
+// Competitors tab and only tags the remaining shortfall, moving past brands already tagged.
+const MAX_ROUNDS = 3;
 
 /**
  * Precondition for every Competitors-tab test: make sure saved competitors exist.
@@ -29,26 +34,51 @@ test('seed saved competitors', async ({ page }) => {
   const competitor = new Competitor(page);
   const adsLibrary = new AdsLibrary(page);
 
-  // How many are there already?
-  await competitor.navigate();
-  const existing = await competitor.countAllCards();
-  console.log(`saved competitors before seeding: ${existing} (need ${MIN_COMPETITORS})`);
+  let after = 0;
 
-  if (existing >= MIN_COMPETITORS) {
-    console.log('enough competitors already — nothing to seed');
-    return;
+  for (let round = 1; round <= MAX_ROUNDS; round++) {
+    await competitor.navigate();
+    after = await competitor.countAllCards();
+    console.log(`round ${round}: saved competitors = ${after} (need ${MIN_COMPETITORS})`);
+
+    if (after >= MIN_COMPETITORS) break;
+
+    // Seed the shortfall by tagging brands from the Ad Library. Brands already saved as
+    // competitors are detected and skipped, so each round makes progress on new brands.
+    await adsLibrary.navigateToAdsLibrary();
+    const tagged = await adsLibrary.seedCompetitorsFromBrands(MIN_COMPETITORS - after);
+    console.log(`round ${round}: tagged ${tagged} new competitor(s)`);
+
+    // No brand left that could be tagged — further rounds would repeat the same walk
+    if (tagged === 0) {
+      console.warn(`round ${round}: no new brands could be tagged — stopping`);
+      await competitor.navigate();
+      after = await competitor.countAllCards();
+      break;
+    }
   }
 
-  // Seed the shortfall by tagging brands from the Ad Library
-  await adsLibrary.navigateToAdsLibrary();
-  const needed = MIN_COMPETITORS - existing;
-  const tagged = await adsLibrary.seedCompetitorsFromBrands(needed);
-  console.log(`tagged ${tagged} new competitor(s)`);
-
-  // Confirm the Competitors tab now reflects them
-  await competitor.navigate();
-  const after = await competitor.countAllCards();
   console.log(`saved competitors after seeding: ${after}`);
+
+  // A MERGED GROUP must also exist, otherwise mergedGroupCard, mergeGroupActions and
+  // mergeViewData skipped with "run the merge suite first" — they were depending on
+  // merge.spec.js having already run, which parallel execution does not guarantee.
+  // Seeding it here makes them independent, so a missing merged group is a real failure.
+  await competitor.navigate();
+  if (await competitor.findMergedGroupCardIndex() !== -1) {
+    console.log('a merged group already exists — nothing to merge');
+  } else if (after >= 2) {
+    console.log('no merged group found — merging the first two competitors');
+    await competitor.enterMergeMode();
+    await competitor.selectForMerge(0);
+    await competitor.selectForMerge(1);
+    await competitor.clickMergeAction();
+    await competitor.confirmMerge();
+    await competitor.waitForMergeToComplete();
+
+    await competitor.navigate();
+    console.log(`merged group index after seeding: ${await competitor.findMergedGroupCardIndex()}`);
+  }
 
   // Don't fail the whole run if the environment simply has too few brands with ads —
   // the per-spec precondition guards will skip those tests with a clear reason.

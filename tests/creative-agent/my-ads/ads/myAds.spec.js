@@ -36,6 +36,14 @@ test('My Ads - page loads with all required UI elements visible', async () => {
   await expect(myAds.launchDateRange).toBeVisible();
   await expect(myAds.minDaysInput).toBeVisible();
 
+  // Ranking filters
+  await expect(myAds.qualityRankingFilter).toBeVisible();
+  await expect(myAds.engagementRankingFilter).toBeVisible();
+  await expect(myAds.conversionRankingFilter).toBeVisible();
+
+  // Ad account selector
+  await expect(myAds.adAccountFilter).toBeVisible();
+
   // Order button
   await expect(myAds.orderDescButton).toBeVisible();
   // Results count and ad card list

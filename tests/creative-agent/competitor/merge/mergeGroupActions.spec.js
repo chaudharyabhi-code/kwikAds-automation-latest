@@ -15,7 +15,8 @@ test.beforeEach(async ({ page }) => {
   competitor = new Competitor(page);
   await competitor.navigate();
   mergedCard = await competitor.findMergedGroupCardIndex();
-  test.skip(mergedCard === -1, 'No merged group card exists — run the merge suite first');
+  // competitor.setup.js seeds a merged group, so a missing one is a real failure, not a skip.
+  expect(mergedCard, 'no merged group card exists — competitor.setup.js should have seeded one').not.toBe(-1);
 });
 
 test('Merged group - Sync button triggers sync popover', async () => {
