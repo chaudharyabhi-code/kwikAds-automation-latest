@@ -4,12 +4,32 @@ import { expect } from '@playwright/test';
 // must sum to, so it is excluded whenever the individual formats are enumerated.
 export const AD_FORMAT_ALL = 'All Formats';
 
+// The Status filter's real statuses. "All" is the reset option and is excluded, since a card
+// cannot carry an "All" badge.
+export const AD_STATUSES = ['Active', 'Paused', 'Archived'];
+export const STATUS_ALL = 'All';
+
+// Actions in a card's 3-dot menu. Share and Download live here, not on the card face.
+// "Delete Draft" is excluded — it only appears on draft cards.
+export const CARD_MENU_ACTIONS = [
+  'Share Creative', 'Download Creative', 'Save to Collection', 'Copy ID',
+];
+
 export class MyAds {
   constructor(page) {
     this.page = page;
 
     // Number of ads the grid loads in its first batch (product behaviour)
     this.FIRST_PAGE_SIZE = 30;
+
+    // Status badge text colours, read from the browser. Active and Archived match the
+    // Ads Library values; Paused and Uploaded are My Ads only.
+    this.BADGE_COLOURS = {
+      Active:   'rgb(82, 196, 26)',   // green
+      Paused:   'rgb(250, 173, 20)',  // orange
+      Archived: 'rgb(140, 140, 140)', // grey
+      Uploaded: 'rgb(239, 68, 68)',   // red
+    };
 
     // ── DOM/framework details the specs assert against ────────────────────────
     // Ant Design disabled-state classes for the filter controls
@@ -192,6 +212,32 @@ export class MyAds {
     await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
     await this.page.waitForLoadState('networkidle');
   }
+
+  // ── Ad card anatomy (card-scoped factories) ──────────────────────────────────
+  card(n = 0) { return this.adCards.nth(n); }
+
+  // Brand initial avatar in the card header
+  cardInitialCircle(n = 0) {
+    return this.card(n).locator('div[style*="border-radius: 50%"][style*="width: 32px"]').first();
+  }
+  cardName(n = 0) {
+    return this.card(n).locator('div[style*="font-weight: 700"]').filter({ hasText: /\S/ }).first();
+  }
+  cardMenuTrigger(n = 0) { return this.card(n).locator('button.ant-dropdown-trigger').first(); }
+  // Items in the open 3-dot menu — Share and Download live here, not on the card face
+  get cardMenuItems() { return this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden) li'); }
+  // Active / Paused / Archived / Uploaded pill
+  cardStatusBadge(n = 0) {
+    return this.card(n).locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').first();
+  }
+  cardDate(n = 0) { return this.card(n).getByText(/[A-Z][a-z]{2}\s\d{1,2},\s\d{4}/).first(); }
+  cardFormatBadge(n = 0) {
+    return this.card(n)
+      .locator('div[style*="position: absolute"][style*="font-weight: 700"][style*="letter-spacing: 0.3px"]').first();
+  }
+  cardKaaiButton(n = 0) { return this.card(n).locator('button').filter({ hasText: /KAAI/i }).first(); }
+  // The creative itself — a <video> for video ads, an <img> for everything else
+  cardCreative(n = 0) { return this.card(n).locator('video, img'); }
 
   rankingFilter(name) {
     return this.filtersDiv.locator('label')

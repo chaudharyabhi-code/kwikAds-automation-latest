@@ -277,6 +277,30 @@ export class Competitor {
     return -1;
   }
 
+  // Guarantees a merged group exists and returns its index, merging the first two cards when
+  // none is present. Returns -1 only if there are fewer than 2 competitors to merge.
+  //
+  // Self-healing on purpose: seeding one merged group in competitor.setup.js is not enough,
+  // because the delete specs permanently remove merged groups and run in parallel with the
+  // specs that read them. Each spec re-establishing its own precondition removes the ordering
+  // dependency entirely.
+  async ensureMergedGroup() {
+    const existing = await this.findMergedGroupCardIndex();
+    if (existing !== -1) return existing;
+
+    if (await this.countAllCards() < 2) return -1;
+
+    await this.enterMergeMode();
+    await this.selectForMerge(0);
+    await this.selectForMerge(1);
+    await this.clickMergeAction();
+    await this.confirmMerge();
+    await this.waitForMergeToComplete();
+
+    await this.navigate();
+    return this.findMergedGroupCardIndex();
+  }
+
   // Index of the first card WITHOUT the MERGED GROUP badge, or -1.
   async findPlainCardIndex() {
     const total = await this.competitorCards.count();
