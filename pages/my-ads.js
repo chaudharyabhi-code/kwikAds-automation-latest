@@ -1,5 +1,9 @@
 import { expect } from '@playwright/test';
 
+// The Ad Format dropdown's reset option. Its count is the total every individual format
+// must sum to, so it is excluded whenever the individual formats are enumerated.
+export const AD_FORMAT_ALL = 'All Formats';
+
 export class MyAds {
   constructor(page) {
     this.page = page;
@@ -53,10 +57,17 @@ export class MyAds {
     this.launchDateRange = this.filtersDiv.locator('.ant-picker-range').first();
     this.minDaysInput    = this.filtersDiv.locator('input[type="number"]').first();
     this.orderDescButton = this.filtersDiv.locator('button').filter({ hasText: 'Desc' }).first();
+    // Anchored regexes — a bare "Ranking" would match all three of these
+    this.qualityRankingFilter    = this.rankingFilter('Quality');
+    this.engagementRankingFilter = this.rankingFilter('Engagement');
+    this.conversionRankingFilter = this.rankingFilter('Conversion');
+    // Sits in the page header, outside the filter card
+    this.adAccountFilter = this.adsLibraryContent.locator('.ant-select')
+      .filter({ hasText: 'Ad Accounts' }).first();
 
     // Card format labels — scoped to first scroller only (two exist in DOM; second is hidden)
-    this.adCardVideoLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('VIDEO', { exact: true });
-    this.adCardImageLabels = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first().getByText('IMAGE', { exact: true });
+    this.adCardVideoLabels = this.adCardFormatLabels('Video');
+    this.adCardImageLabels = this.adCardFormatLabels('Image');
     // Card status badges — scoped to first scroller; My Ads uses "Paused" (not "Inactive")
     this.activeAdBadges   = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first()
       .locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').filter({ hasText: /^Active/ });
@@ -71,14 +82,19 @@ export class MyAds {
       .locator('button[style*="rgba(250, 245, 255, 0.6)"]');
     // KAAI coverage popover (opens on clicking the KAAI XX% button)
     this.kaaiCoveragePopover = this.page.locator('.ant-popover').filter({ hasText: 'KAAI Coverage' });
-    // Ad Format dropdown options (portal-rendered by Ant Design)
-    this.adFormatDropdownOptions = this.page.locator('.ant-select-dropdown .ant-select-item-option');
+    // Ad Format dropdown options (portal-rendered by Ant Design).
+    // Scoped to the OPEN dropdown: Ant leaves closed dropdowns in the DOM, so an unscoped
+    // match also picks up Status/KAAI/Sort By options and can select from the wrong list.
+    this.openDropdown = this.page.locator('.ant-select-dropdown:not(.ant-select-dropdown-hidden)');
+    this.adFormatDropdownOptions = this.openDropdown.locator('.ant-select-item-option');
 
     // Results and card list
     this.resultsCount = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of [\d,]+ ads/ }).first();
     this.adCardList   = this.adsLibraryContent.locator('[data-testid="virtuoso-item-list"]').first();
-    this.firstAdCard  = this.adCardList.locator('[data-index="0"]').first().locator("div[style*='border: 1px solid rgb(233, 234, 235);'][style*='border-radius: 25px;'][style*='overflow: hidden;'][style*='background-color: rgb(255, 255, 255);'][style*='cursor: pointer;'][style*='box-shadow: none;'][style*='position: relative;'][style*='isolation: isolate;'][style*='opacity: 1;']").first();
-    this.adCardNames  = this.adsLibraryContent.locator('[data-testid="virtuoso-item-list"] h2');
+    // Ad cards. Two style fragments, not nine — the previous locator also demanded
+    // "box-shadow: none;", which the card does not carry, so it matched nothing.
+    this.adCards      = this.adCardList.locator('div[style*="cursor: pointer"][style*="border-radius: 25px"]');
+    this.firstAdCard  = this.adCards.first();
     this.scroller     = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller').first();
     this.emptyState   = this.adsLibraryContent.getByText('No ads found matching your search', { exact: true }).first();
 
@@ -151,15 +167,22 @@ export class MyAds {
   }
 
   // Opens the first ad card modal and returns its Ad ID string, then closes the modal
-  async getAdIdFromFirstCard() {
+  // Opens the first ad card's detail modal, reads its name and ID, then closes it.
+  // Lets the search tests use real data from the page instead of hardcoded .env values.
+  async getFirstAdNameAndId() {
     await this.firstAdCard.scrollIntoViewIfNeeded();
     await this.firstAdCard.click({ force: true });
     await this.adDetailModal.waitFor({ state: 'visible', timeout: 10000 });
+
+    const name = (await this.adDetailModal.locator('h2').first().innerText()).trim();
     const modalText = await this.adDetailModal.innerText();
+
     await this.adDetailModalClose.click();
     await this.adDetailModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
-    const match = modalText.match(/Ad ID\s*[:\s]+(\d{10,})/);
-    return match?.[1] ?? null;
+
+    // "Ad ID: 120250895036710195" on Meta ads, "ID: 4" on drafts
+    const id = modalText.match(/\bID\s*:?\s*(\d+)/i)?.[1] ?? null;
+    return { name, id };
   }
 
   // Waits for the spinner to appear then disappear after any filter action
@@ -170,10 +193,92 @@ export class MyAds {
     await this.page.waitForLoadState('networkidle');
   }
 
-  // Clicks the Ad Format dropdown and selects the given option ("Video", "Image", "All Formats")
+  rankingFilter(name) {
+    return this.filtersDiv.locator('label')
+      .filter({ hasText: new RegExp(`^${name} Ranking$`, 'i') })
+      .locator('..').locator('.ant-select').first();
+  }
+
+  // Every format badge in the grid — the uppercase label overlaid on each card's media
+  // ("VIDEO", "IMAGE", "FLEXIBLE", "CAROUSEL", and, once the app is fixed, "COLLECTION").
+  //
+  // Identified by the badge component's inline-style signature rather than by text. Specs
+  // assert a badge is ABSENT (Collection renders none), and that claim is only trustworthy if
+  // the locator can match nothing but the badge itself. Verified identical across FLEXIBLE and
+  // CAROUSEL, so this is one shared component.
+  formatBadges() {
+    return this.adsLibraryContent
+      .locator('.virtualized-ad-grid-scroller').first()
+      .locator('div[style*="position: absolute"][style*="font-weight: 700"][style*="letter-spacing: 0.3px"]');
+  }
+
+  // Badges for one specific format. A factory rather than a locator per format: the Ad Format
+  // dropdown has already grown once (Video/Image gained Flexible, Carousel, Collection) and
+  // hard-coded pairs went stale the moment it did.
+  adCardFormatLabels(format) {
+    return this.formatBadges()
+      .filter({ hasText: new RegExp(`^\\s*${format.toUpperCase()}\\s*$`) });
+  }
+
+  // The distinct set of format badges the grid is currently rendering, uppercase and sorted.
+  //
+  // One DOM read that answers both halves of "this format badges itself, and no other format":
+  // the set must be exactly [FORMAT]. Checking that as N separate is-X-absent counts costs
+  // O(N²) round-trips and reports only what is missing, never what is actually there.
+  //
+  // Polls briefly so a slow-painting grid does not read as an empty badge set.
+  async getRenderedFormatBadges(graceMs = 5000) {
+    await this.waitForGridPainted();
+    const deadline = Date.now() + graceMs;
+
+    let names = [];
+    do {
+      const texts = await this.formatBadges().allInnerTexts();
+      names = [...new Set(texts.map(t => t.trim().toUpperCase()).filter(Boolean))].sort();
+      if (names.length) break;
+      await this.page.waitForTimeout(250);
+    } while (Date.now() < deadline);
+
+    return names;
+  }
+
+  // Waits for the ad grid to actually paint after a filter change. selectAdFormat() already
+  // waits out the spinner; this covers the gap between "spinner gone" and "cards on screen".
+  // Non-fatal: an empty result set legitimately paints no grid.
+  async waitForGridPainted(timeout = 15000) {
+    await this.adCardList.first().waitFor({ state: 'visible', timeout }).catch(() => {});
+  }
+
+  // Opens the Ad Format dropdown, reads whatever options the app currently offers, closes it
+  // again, and returns the individual formats with "All Formats" removed.
+  //
+  // Read at runtime instead of hard-coded so the format tests keep covering the full list as
+  // it grows. The old spec summed only Video + Image against the All Formats total, which
+  // silently became unsatisfiable once the other three formats shipped.
+  async getAdFormatOptions() {
+    await this.adFormatFilter.click();
+    await this.openDropdown.waitFor({ state: 'visible' });
+    const labels = (await this.adFormatDropdownOptions.allInnerTexts())
+      .map(t => t.trim())
+      .filter(Boolean)
+      .filter(t => t !== AD_FORMAT_ALL);
+
+    await this.page.keyboard.press('Escape');
+    await this.openDropdown.waitFor({ state: 'hidden' }).catch(() => {});
+    return labels;
+  }
+
+  // Clicks the Ad Format dropdown and selects the given option
+  // ("Video", "Image", "Flexible", "Carousel", "Collection", "All Formats")
   async selectAdFormat(format) {
     await this.adFormatFilter.click();
-    await this.adFormatDropdownOptions.filter({ hasText: format }).click();
+    await this.openDropdown.waitFor({ state: 'visible' });
+    // Anchored regex, not a bare substring. With six options now — and the list demonstrably
+    // still growing — a substring match is one rename away from picking the wrong option.
+    await this.adFormatDropdownOptions
+      .filter({ hasText: new RegExp(`^\\s*${format}\\s*$`) })
+      .first()
+      .click();
     await this.waitForFilter();
   }
 

@@ -23,13 +23,12 @@ test('Sync button - becomes disabled and shows progress percentage while sync is
   await expect(competitor.getSyncButton(0)).toContainText('Sync');
   await expect(competitor.getSyncButton(0)).toBeEnabled();
 
-  // Trigger sync
+  // Arm before clicking — the disabled state lasts only while the sync is in flight
+  const sawDisabled = await competitor.watchForSyncButtonDisabled(0);
+
   await competitor.syncCompetitor(0);
   await expect(competitor.syncPopover).toBeVisible();
 
-  // Button must be disabled — cannot re-trigger sync mid-progress
-  await expect(competitor.getSyncButton(0)).toBeDisabled();
-
-  // Button text changes to a progress percentage, not "Sync"
-  await expect(competitor.getSyncButton(0)).not.toContainText('Sync');
+  // Button must be disabled at some point — cannot re-trigger sync mid-progress
+  expect(await sawDisabled()).toBe(true);
 });

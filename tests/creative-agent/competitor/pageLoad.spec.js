@@ -16,9 +16,10 @@ test('Competitors tab - loads with search bar, Saved Competitors count, Synced t
   // Search bar is visible and interactive
   await expect(competitor.searchInput).toBeVisible();
 
-  // "Synced today" badge confirms last sync happened today
-  await expect(competitor.syncedTodayBadge).toBeVisible();
-
   // Merge button is available for merging competitor groups
   await expect(competitor.mergeButton).toBeVisible();
+
+  // The "Synced today" badge is CONDITIONAL — it renders only when a sync ran today, so it is
+  // not part of the page's required furniture. Asserting it here failed on any merchant that
+  // had not synced yet. syncedToday.spec.js covers the badge itself.
 });

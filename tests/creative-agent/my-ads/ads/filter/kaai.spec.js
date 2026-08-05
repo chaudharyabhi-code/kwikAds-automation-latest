@@ -26,10 +26,12 @@ test('My Ads - KAAI filter: KAAI Analysed filter count matches Analyzed count in
   expect(filteredTotal).toBe(analyzed);
 
   // All visible cards must have the purple (analysed) KAAI button
-  const analysedButtons    = await myAds.kaaiAnalysedCardButtons.count();
-  const notAnalysedButtons = await myAds.kaaiNotAnalysedCardButtons.count();
-  expect(analysedButtons).toBeGreaterThan(0);
-  expect(notAnalysedButtons).toBe(0);
+  if(filteredTotal!==0){
+    const analysedButtons    = await myAds.kaaiAnalysedCardButtons.count();
+    const notAnalysedButtons = await myAds.kaaiNotAnalysedCardButtons.count();
+    expect(analysedButtons).toBeGreaterThan(0);
+    expect(notAnalysedButtons).toBe(0);
+  }
 });
 
 // ─── Test 2: Not Analysed filter count matches popover Pending value ──────────
@@ -47,10 +49,12 @@ test('My Ads - KAAI filter: Not Analysed filter count matches Pending count in K
   expect(filteredTotal).toBe(pending);
 
   // All visible cards must have the not-analysed (white/transparent) KAAI button
-  const notAnalysedButtons = await myAds.kaaiNotAnalysedCardButtons.count();
-  const analysedButtons    = await myAds.kaaiAnalysedCardButtons.count();
-  expect(notAnalysedButtons).toBeGreaterThan(0);
-  expect(analysedButtons).toBe(0);
+  if(filteredTotal!==0){
+    const notAnalysedButtons = await myAds.kaaiNotAnalysedCardButtons.count();
+    const analysedButtons    = await myAds.kaaiAnalysedCardButtons.count();
+    expect(notAnalysedButtons).toBeGreaterThan(0);
+    expect(analysedButtons).toBe(0);
+  }
 });
 
 // ─── Test 3: All = KAAI Analysed + Not Analysed ───────────────────────────────

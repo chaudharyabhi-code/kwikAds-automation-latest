@@ -223,6 +223,26 @@ export class Competitor {
   }
 
   // Clicks Sync on the Nth competitor card (0-based)
+  // Records whether the Nth card's Sync button ever becomes disabled, and returns a getter for
+  // the verdict. Must be called BEFORE clicking Sync: the button is only disabled while the
+  // sync request is in flight, so a post-click assertion races the backend and loses on a fast
+  // sync. An observer armed beforehand cannot miss it.
+  async watchForSyncButtonDisabled(n = 0) {
+    await this.page.evaluate((index) => {
+      const card = document.querySelectorAll('[data-competitor-id]')[index];
+      const hit = () => !!card?.querySelector('button')?.disabled;
+      window.__kwikSawSyncDisabled = hit();
+      const observer = new MutationObserver(() => { if (hit()) window.__kwikSawSyncDisabled = true; });
+      observer.observe(card, { subtree: true, attributes: true, attributeFilter: ['disabled', 'class'] });
+      window.__kwikSyncObserver = observer;
+    }, n);
+
+    return async () => this.page.evaluate(() => {
+      window.__kwikSyncObserver?.disconnect();
+      return window.__kwikSawSyncDisabled === true;
+    });
+  }
+
   async syncCompetitor(n = 0) {
     await this.competitorCards.nth(n).locator('button').filter({ hasText: 'Sync' }).click();
   }
