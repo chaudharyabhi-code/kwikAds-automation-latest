@@ -11,8 +11,34 @@ export const STATUS_ALL = 'All';
 
 // Actions in a card's 3-dot menu. Share and Download live here, not on the card face.
 // "Delete Draft" is excluded — it only appears on draft cards.
+// Metrics always shown on a card, and the ones revealed by the METRICS toggle.
+export const CARD_METRICS = ['AD SPEND', 'VELOCITY', 'CTR'];
+export const CARD_EXPANDED_METRICS = ['REVENUE', 'ROAS', 'NNR'];
+export const CARD_COMPETITOR_SIGNALS = ['Quality', 'Engagement', 'Conversion'];
+
+// Ad detail modal. Text is TITLE CASE in the DOM — the uppercase look comes from
+// text-transform, so matching on "AD SPEND" here would find nothing (unlike the card, which
+// really does hold uppercase text).
+export const MODAL_TABS = ['Performance Matrix', 'KAAI Analysis', 'Ad Copy Details'];
+export const MODAL_METRICS = [
+  'Ad Spend', 'ROAS', 'Click-Through Rate', 'Total Clicks',
+  'Orders Generated', 'Revenue', 'Spend Velocity', 'Net New Reach (Last Day)',
+];
+export const MODAL_COMPETITOR_SIGNALS = ['Quality Ranking', 'Engagement Ranking', 'Conversion Ranking'];
+// The modal badge wording differs from the card badge: an Active ad reads "Live Platform Ad"
+export const MODAL_STATUS_BADGES = { Active: 'Live Platform Ad', Paused: 'Paused', Archived: 'Archived' };
+
 export const CARD_MENU_ACTIONS = [
   'Share Creative', 'Download Creative', 'Save to Collection', 'Copy ID',
+];
+
+// The 3-dot menu differs by creative type. Note the label discrepancy the product team should
+// confirm: Meta says "Copy Ad ID", Draft says "Copy ID" — drafts have no published Meta ad id.
+export const META_CARD_MENU = [
+  'Share Creative', 'Download Creative', 'Save to Collection', 'Copy Ad ID',
+];
+export const DRAFT_CARD_MENU = [
+  'Share Creative', 'Download Creative', 'Save to Collection', 'Copy ID', 'Delete Draft',
 ];
 
 export class MyAds {
@@ -119,8 +145,13 @@ export class MyAds {
     this.emptyState   = this.adsLibraryContent.getByText('No ads found matching your search', { exact: true }).first();
 
     // Ad detail modal (portal-rendered by Ant Design, outside the app root)
+    // ":visible" matters: closing an Ant modal leaves it in the DOM, so `.first()` on a bare
+    // .ant-modal-content can resolve to a STALE closed modal. That is how a test read the ad
+    // name from a previously-opened modal and asserted the wrong ad. Matching only the visible
+    // one also keeps not.toBeVisible()/waitFor('hidden') working, since a closed modal then
+    // matches nothing.
     this.adDetailModal      = this.page.locator('.ant-modal-content').first();
-    this.adDetailModalClose = this.page.locator('button.ant-modal-close').first();
+    this.adDetailModalClose = this.adDetailModal.locator('button.ant-modal-close').first();
 
     // Toolbar buttons — sibling div immediately after filtersDiv
     this.kaaiCoverageButton = this.filtersDiv.locator('xpath=./following-sibling::div[1]//button[contains(.,"KAAI")]').nth(0);
@@ -226,6 +257,105 @@ export class MyAds {
   cardMenuTrigger(n = 0) { return this.card(n).locator('button.ant-dropdown-trigger').first(); }
   // Items in the open 3-dot menu — Share and Download live here, not on the card face
   get cardMenuItems() { return this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden) li'); }
+  // Ant marks destructive items with -item-danger, which is what renders "Delete Draft" red
+  get cardMenuDangerItem() {
+    return this.page.locator('.ant-dropdown:not(.ant-dropdown-hidden) li.ant-dropdown-menu-item-danger').first();
+  }
+  // Meta cards say "Copy Ad ID", drafts say "Copy ID" — match either
+  get cardMenuCopyIdItem() {
+    return this.cardMenuItems.filter({ hasText: /^Copy (Ad )?ID$/ }).first();
+  }
+  cardMenuItem(label) {
+    return this.cardMenuItems.filter({ hasText: new RegExp(`^${label}$`) }).first();
+  }
+
+  async openCardMenu(n = 0) {
+    await this.cardMenuTrigger(n).click();
+    await this.cardMenuItems.first().waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  // Menu labels in render order, so a spec can assert the exact list and its ordering.
+  async getCardMenuLabels() {
+    return (await this.cardMenuItems.allInnerTexts()).map(t => t.trim()).filter(Boolean);
+  }
+
+  async closeCardMenu() {
+    await this.page.keyboard.press('Escape');
+    await this.cardMenuItems.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  }
+
+  // ── Select mode ──────────────────────────────────────────────────────────────
+  get addToCollectionButton() {
+    return this.adsLibraryContent.locator('button').filter({ hasText: 'Add to Collection' }).first();
+  }
+  get cancelSelectionButton() {
+    return this.adsLibraryContent.locator('button').filter({ hasText: /^Cancel$/ }).first();
+  }
+  get selectionCountText() {
+    return this.adsLibraryContent.locator('span').filter({ hasText: /\d+ selected/ }).first();
+  }
+  // Shown in place of "N selected" before anything is picked
+  get tapToSelectText() {
+    return this.adsLibraryContent.locator('span').filter({ hasText: /Tap to select/ }).first();
+  }
+  // The select-mode tick box is a custom 22px div, NOT an <input type="checkbox">, so :checked
+  // does not apply. Selection is encoded in its background: solid blue when picked,
+  // translucent white when not.
+  get cardCheckboxes() {
+    return this.adCardList.locator('div[style*="width: 22px"][style*="height: 22px"][style*="z-index: 5"]');
+  }
+  get selectedCardCheckboxes() {
+    return this.adCardList
+      .locator('div[style*="z-index: 5"][style*="background-color: rgb(0, 75, 141)"]');
+  }
+  // True when the Nth card's tick box is filled in
+  async isCardSelected(n = 0) {
+    const style = await this.cardCheckboxes.nth(n).getAttribute('style') ?? '';
+    return style.includes('rgb(0, 75, 141)');
+  }
+
+  async enterSelectMode() {
+    await this.selectButton.click();
+    await this.cancelSelectionButton.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  async exitSelectMode() {
+    await this.cancelSelectionButton.click();
+    await this.selectButton.waitFor({ state: 'visible', timeout: 10000 });
+  }
+
+  // In select mode the whole card is a toggle — no need to hit the checkbox itself
+  async toggleCardSelection(n = 0) {
+    await this.card(n).click({ force: true });
+  }
+
+  // 0 when the "N selected" label is not rendered at all (nothing selected yet)
+  async getSelectedCount() {
+    if (await this.selectionCountText.count() === 0) return 0;
+    const text = await this.selectionCountText.innerText().catch(() => '');
+    return parseInt(text.match(/(\d+)\s+selected/)?.[1] ?? '0', 10);
+  }
+
+  // Share Creative popup, opened from the card's 3-dot menu.
+  // ":visible" because Ant leaves closed modals in the DOM.
+  get sharePopup() {
+    return this.page.locator('div[aria-modal="true"]:visible').filter({ hasText: 'Share Creative' }).first();
+  }
+  get sharePopupCloseBtn() {
+    return this.sharePopup.locator('button[style*="position: absolute"]').first();
+  }
+
+  // Delete Draft confirmation
+  get deleteDraftModal() {
+    return this.page.locator('.ant-modal-content:visible, .ant-modal-confirm')
+      .filter({ hasText: /Delete Draft/i }).first();
+  }
+  get deleteDraftConfirmBtn() {
+    return this.deleteDraftModal.locator('button').filter({ hasText: /^Delete$/i }).first();
+  }
+  get deleteDraftCancelBtn() {
+    return this.deleteDraftModal.locator('button').filter({ hasText: /^Cancel$/i }).first();
+  }
   // Active / Paused / Archived / Uploaded pill
   cardStatusBadge(n = 0) {
     return this.card(n).locator('span[style*="border-radius: 9999px"][style*="font-weight: 700"]').first();
@@ -238,6 +368,73 @@ export class MyAds {
   cardKaaiButton(n = 0) { return this.card(n).locator('button').filter({ hasText: /KAAI/i }).first(); }
   // The creative itself — a <video> for video ads, an <img> for everything else
   cardCreative(n = 0) { return this.card(n).locator('video, img'); }
+
+  // METRICS expand/collapse toggle, and any metric label on the card by its text
+  cardMetricsToggle(n = 0) { return this.card(n).locator('button').filter({ hasText: /^Metrics$/i }).first(); }
+  cardMetric(n, label) { return this.card(n).getByText(label, { exact: true }).first(); }
+  cardCompetitorSignals(n = 0) { return this.card(n).getByText('Competitor Signals', { exact: true }).first(); }
+
+  async toggleCardMetrics(n = 0) {
+    await this.cardMetricsToggle(n).click();
+  }
+
+  // ── Ad detail modal ──────────────────────────────────────────────────────────
+  // The ad title. Scoped to the header h2 by its style so it cannot pick up any other
+  // heading the modal body renders (e.g. "KAAI Creative Analysis" on the KAAI tab).
+  get modalAdName() {
+    return this.adDetailModal
+      .locator('h2[style*="font-size: 13px"][style*="font-weight: 700"]').first();
+  }
+  get modalAdIdRow() { return this.adDetailModal.getByText(/Ad ID/i).first(); }
+  get modalCopyIdIcon() { return this.adDetailModal.locator('span[aria-label="copy"]').first(); }
+  get modalLaunchedDate() { return this.adDetailModal.getByText(/Launched/i).first(); }
+  get modalActivePeriod() { return this.adDetailModal.getByText(/Active Period/i).first(); }
+  get modalFormats() { return this.adDetailModal.getByText(/^Formats$/i).first(); }
+  // Anchored regex, not a bare string: Playwright's hasText is case-INSENSITIVE, so
+  // "KAAI Analysis" would also match the footer's "KAAI analysis" button.
+  modalTab(name) { return this.adDetailModal.locator('button').filter({ hasText: new RegExp(`^${name}$`) }).first(); }
+  modalText(text) { return this.adDetailModal.getByText(text, { exact: true }).first(); }
+  get modalSaveToCollectionBtn() {
+    return this.adDetailModal.locator('button').filter({ hasText: /^Save to Collection$/ }).first();
+  }
+  // Only rendered when the ad has NOT been analysed yet
+  get modalKaaiAnalysisBtn() {
+    return this.adDetailModal.locator('button').filter({ hasText: /^KAAI analysis$/ }).first();
+  }
+  // The selected modal tab is the one with a coloured bottom border; inactive tabs are
+  // transparent. There is no aria-selected on these buttons, so the border is the only signal.
+  async getActiveModalTab() {
+    return this.adDetailModal.locator('button').evaluateAll(buttons => {
+      const active = buttons.find(b =>
+        /Performance Matrix|KAAI Analysis|Ad Copy Details/.test(b.textContent) &&
+        getComputedStyle(b).borderBottomColor !== 'rgba(0, 0, 0, 0)');
+      return active ? active.textContent.trim() : null;
+    });
+  }
+
+  async openAdDetailModal(n = 0) {
+    await this.card(n).scrollIntoViewIfNeeded();
+    await this.card(n).click({ force: true });
+    await this.adDetailModal.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  async closeAdDetailModal() {
+    await this.adDetailModalClose.click();
+    await this.adDetailModal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  }
+
+  get modalNextAdBtn() { return this.adDetailModal.locator('button[aria-label="Next ad"]').first(); }
+
+  async openModalTab(name) {
+    await this.modalTab(name).click();
+  }
+
+  // A Meta creative's modal reads "Ad ID: 1202…"; a DRAFT's reads just "ID: 4" — it has no
+  // published Meta ad id. Requiring the literal "Ad ID" returned null for every draft.
+  async getModalAdId() {
+    const text = await this.adDetailModal.innerText();
+    return text.match(/\b(?:Ad\s+)?ID\s*:?\s*(\d+)/i)?.[1] ?? null;
+  }
 
   rankingFilter(name) {
     return this.filtersDiv.locator('label')
@@ -332,6 +529,14 @@ export class MyAds {
   async selectStatus(status) {
     await this.statusFilter.click();
     await this.page.locator('.ant-select-dropdown').getByTitle(status, { exact: true }).click();
+    await this.waitForFilter();
+  }
+
+  // Sort By dropdown ("Recently Added", "Spend", "Orders", "CTR", ...)
+  async selectSortBy(option) {
+    await this.sortByFilter.click();
+    await this.openDropdown.waitFor({ state: 'visible' });
+    await this.openDropdown.getByTitle(option, { exact: true }).click();
     await this.waitForFilter();
   }
 

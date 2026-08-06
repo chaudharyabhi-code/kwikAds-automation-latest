@@ -68,7 +68,13 @@ export class Collections {
     this.detailEmptyStateSubtitle = this.adsLibraryContent.getByText('Save ads from the Ad Library to see them here.');
 
     // ── Save to Collection modal (opened from Ad Library 3-dot menu or Select toolbar) ──
-    this.saveToCollectionModal            = this.page.locator('div[aria-modal="true"]').filter({ hasText: 'Save to Collection' });
+    // The "Adding N ad" filter is what makes this unambiguous. Opened from the AD DETAIL modal,
+    // two dialogs are on screen and the detail modal also contains the words "Save to Collection"
+    // (its footer button), so filtering on that text alone matched both and tripped strict mode.
+    // Only the save modal carries the "Adding N ad(s)" subtitle.
+    this.saveToCollectionModal            = this.page.locator('div[aria-modal="true"]')
+      .filter({ hasText: 'Save to Collection' })
+      .filter({ hasText: /Adding \d+ ad/ });
     // "Adding N ad(s) · M collections available"
     this.saveToCollectionModalSubtitle    = this.saveToCollectionModal.locator('p').filter({ hasText: /Adding \d+ ad/ }).first();
     // X close button (position:absolute in the modal header area)
@@ -299,6 +305,22 @@ export class Collections {
   // forever on any collection with no ads.
   async openCollection(n = 0) {
     await this.collectionCards.nth(n).click();
+    await this.pageSpinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
+    await this.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
+    await this.detailBackButton.waitFor({ state: 'visible', timeout: 15000 });
+    await this.detailAdCountInfo.waitFor({ state: 'visible', timeout: 15000 });
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  // 3-dot menu trigger on the Nth ad card inside an open collection
+  detailAdMenuTrigger(n = 0) {
+    return this.detailAdItems.nth(n).locator('button.ant-dropdown-trigger').first();
+  }
+
+  // Opens a collection by NAME rather than grid position — the grid reorders as collections
+  // are created and deleted, so an index is not stable across a run.
+  async openCollectionByName(name) {
+    await this.getCardByName(name).first().click();
     await this.pageSpinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
     await this.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.detailBackButton.waitFor({ state: 'visible', timeout: 15000 });

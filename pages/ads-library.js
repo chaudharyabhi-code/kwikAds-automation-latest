@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import { startCapturingClipboardWrites, waitForClipboardWrite } from './clipboard';
 
 export class AdsLibrary {
   constructor(page) {
@@ -474,49 +475,14 @@ this.archivedAdBadges = this.adsLibraryContent
   }
 
   // ── Clipboard (for "Copy Library ID") ────────────────────────────────────────
-  // Verifying a copy by pasting with Ctrl+V is unreliable: it races the app's asynchronous
-  // clipboard write, and it reads the SHARED OS clipboard, so it regularly picked up
-  // whatever was last copied on the machine (a file path from the editor, for instance).
-  // navigator.clipboard.readText() is no better — it needs document focus and can be
-  // blocked outright, returning empty.
-  //
-  // Instead, hook the clipboard APIs and record what the page itself writes. That is the
-  // behaviour under test ("Copy Library ID copies the right value") and it is fully
-  // deterministic. Install this BEFORE triggering the copy.
+  // Implementation lives in pages/clipboard.js so My Ads can use the same capture.
+  // Kept as methods here so existing specs keep their adsLibrary.<method>() calls.
   async startCapturingClipboardWrites() {
-    await this.page.evaluate(() => {
-      window.__clipWrites = [];
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        const orig = navigator.clipboard.writeText.bind(navigator.clipboard);
-        navigator.clipboard.writeText = (text) => {
-          window.__clipWrites.push(String(text));
-          return orig(text).catch(() => {});   // ignore OS-level permission failures
-        };
-      }
-      // Fallback for the older textarea + execCommand('copy') technique
-      const origExec = document.execCommand.bind(document);
-      document.execCommand = (cmd, ...rest) => {
-        if (String(cmd).toLowerCase() === 'copy') {
-          const active = document.activeElement;
-          if (active && 'value' in active) window.__clipWrites.push(String(active.value));
-          else window.__clipWrites.push(String(window.getSelection() || ''));
-        }
-        return origExec(cmd, ...rest);
-      };
-    });
+    return startCapturingClipboardWrites(this.page);
   }
 
-  // Polls until the page has written something to the clipboard; returns that value.
   async waitForClipboardWrite(timeout = 10000) {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      const v = await this.page
-        .evaluate(() => (window.__clipWrites || []).filter(Boolean).slice(-1)[0] || '')
-        .catch(() => '');
-      if (v.trim()) return v.trim();
-      await this.page.waitForTimeout(200);
-    }
-    return '';
+    return waitForClipboardWrite(this.page, timeout);
   }
 
   // Opens the first ad's detail modal, reads its Library ID, and closes the modal again.

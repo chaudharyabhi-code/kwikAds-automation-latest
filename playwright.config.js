@@ -26,6 +26,14 @@ const VIEWPORT = process.env.CI ? { width: 1920, height: 1080 } : null;
    Without the split, the delete and merge specs ran concurrently with the merge-selection
    specs across 4 workers and drained the list underneath them — seeding 5 and deleting 3 left
    the selection tests skipping with "Needs at least 2 saved competitors; found 1". */
+/* The only specs that need a collection containing an ad. Everything else in the suite must
+   NOT depend on collection-setup — making the whole chromium project depend on it meant every
+   My Ads and Ad Library spec paid for collection seeding, and a seeding failure blocked them. */
+const COLLECTION_DEPENDENT = [
+  '**/collections/**/*.spec.js',
+  '**/ads-library/selectMode.spec.js',
+];
+
 const COMPETITOR_MUTATING = [
   '**/competitor/delete/**/*.spec.js',
   '**/competitor/merge/merge.spec.js',
@@ -45,7 +53,7 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 4 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: [['list'], ['html']],
+  reporter: [['list'], ['html'],['blob']],
   /* Per-test budget. Every test logs in from scratch (login + merchant select + KYC
      dismiss) before it does anything, which alone costs ~30-40s on the dev env — and
      any test that then opens a collection or an ad detail measured 52-56s. 60s left no
@@ -117,7 +125,20 @@ export default defineConfig({
        not pay for it. */
     {
       name: 'chromium',
-      testIgnore: ['**/competitor/**', '**/*.setup.js'],
+      testIgnore: ['**/competitor/**', '**/*.setup.js', ...COLLECTION_DEPENDENT],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: VIEWPORT,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup'],
+    },
+    /* Collections and Select mode — the only specs that need a seeded collection, so they are
+       the only ones that wait on collection-setup. */
+    {
+      name: 'chromium-collections',
+      testMatch: COLLECTION_DEPENDENT,
       use: {
         ...devices['Desktop Chrome'],
         viewport: VIEWPORT,
