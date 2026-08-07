@@ -26,14 +26,21 @@ const INVALID_FILES = ['Dummy.md', 'Dummy.txt','Dummy.docx','Dummy.pdf'].map(f =
 // The same real creative under a one-off name. ONLY the upload test needs this: re-running with
 // a fixed filename would hit the duplicate path on the FIRST upload, which is precisely what
 // that test has to avoid.
+// A RANDOM suffix as well as the timestamp. The upload tests run in parallel, and two workers
+// can call this inside the same millisecond — identical names, and because the app dedupes by
+// filename one of them is then rejected as a duplicate and fails for the wrong reason.
+const uniqueName = () => `pw-upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
 const uniqueUpload = () => ({
-  name: `pw-upload-${Date.now()}.png`,
+  name: `${uniqueName()}.png`,
   mimeType: 'image/png',
   buffer: fs.readFileSync(SAMPLE),
 });
+// Sourced from 2mb.jpg, so the extension and mime type must say jpeg — naming JPEG bytes .png
+// is the kind of mismatch an upload validator is entitled to reject.
 const uniqueUpload1 = () => ({
-  name: `pw-upload-${Date.now()}.png`,
-  mimeType: 'image/png',
+  name: `${uniqueName()}.jpg`,
+  mimeType: 'image/jpeg',
   buffer: fs.readFileSync(SAMPLE1),
 });
 

@@ -1,9 +1,15 @@
 export class KwiksAdsCreativeAgent {
   constructor(page) {
     this.page = page;
-    this.kwidAdsSideBar      = this.page.locator('li div').filter({ hasText: 'KwikAds' });
+    // .first(): a bare match can resolve to more than one node while the sidebar mounts, which
+    // trips strict mode on click.
+    this.kwidAdsSideBar      = this.page.locator('li div').filter({ hasText: 'KwikAds' }).first();
     this.createAgent         = this.kwidAdsSideBar.locator('..').locator('ul li').filter({ hasText: 'Creative Agent' });
     // Merchant selector — available on the dashboard header after login
+    // Measured: `.last()` here beats filtering on the "down" chevron — other header controls
+    // (Quickstart, for one) carry the same icon, and filtering on it selected the wrong button
+    // and failed 8 tests where this passes 21. The wait in selectMerchant() is what handles the
+    // header still rendering; the locator itself stays as-is.
     this.merchantChangeButton = this.page.locator('button[type="button"] span[role="img"]').last();
     this.merchantDialog       = this.page.locator('div[role="dialog"]');
     this.merchantDialogLoader = this.merchantDialog.locator('span[aria-label="loading"]');
@@ -116,7 +122,11 @@ export class KwiksAdsCreativeAgent {
   // Runs on every goto() because merchant context is server-side and does not
   // survive across browser contexts even when storageState is restored.
   async selectMerchant() {
-    await this.merchantChangeButton.click();
+    // Wait for the header to finish rendering before clicking. The global actionTimeout (20s) is
+    // right for ordinary in-page clicks but too tight for the post-login shell, which is the
+    // slowest moment of any test — that is what turned this into a beforeEach failure.
+    await this.merchantChangeButton.waitFor({ state: 'visible', timeout: 60000 });
+    await this.merchantChangeButton.click({ timeout: 60000 });
     await this.merchantDialog.waitFor({ state: 'visible' });
     // Wait for the initial merchant list to finish loading before typing
     await this.merchantDialogLoader.waitFor({ state: 'hidden' });
@@ -131,8 +141,16 @@ export class KwiksAdsCreativeAgent {
   }
 
   async navigateToCreativeAgent() {
-    await this.kwidAdsSideBar.click();
-    await this.createAgent.click();
+    // Setting the merchant reloads the dashboard, so the sidebar is re-rendering exactly when
+    // this runs. Wait for it instead of racing it — clicking a sidebar that is still mounting
+    // either does nothing or hits a stale node, which is why the Creative Agent step
+    // intermittently never happened or took far too long.
+    await this.kwidAdsSideBar.waitFor({ state: 'visible', timeout: 60000 });
+    await this.kwidAdsSideBar.click({ timeout: 60000 });
+
+    // Clicking KwikAds expands its submenu — "Creative Agent" does not exist until it does
+    await this.createAgent.waitFor({ state: 'visible', timeout: 30000 });
+    await this.createAgent.click({ timeout: 30000 });
     await this._settleNetwork();
   }
 }
