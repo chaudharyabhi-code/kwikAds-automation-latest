@@ -4,7 +4,7 @@ export class KwiksAdsCreativeAgent {
     this.kwidAdsSideBar      = this.page.locator('li div').filter({ hasText: 'KwikAds' });
     this.createAgent         = this.kwidAdsSideBar.locator('..').locator('ul li').filter({ hasText: 'Creative Agent' });
     // Merchant selector — available on the dashboard header after login
-    this.merchantChangeButton = this.page.locator('button[type="button"] span[role="img"]').nth(1);
+    this.merchantChangeButton = this.page.locator('button[type="button"] span[role="img"]').last();
     this.merchantDialog       = this.page.locator('div[role="dialog"]');
     this.merchantDialogLoader = this.merchantDialog.locator('span[aria-label="loading"]');
     this.merchantSearchInput  = this.merchantDialog.locator('input[type="text"]');
