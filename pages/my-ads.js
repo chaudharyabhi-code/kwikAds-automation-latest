@@ -284,6 +284,87 @@ export class MyAds {
     await this.cardMenuItems.first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
   }
 
+  // ── Upload Media modal (opened by the "+" button — see this.uploadButton) ────
+  get uploadModal() {
+    return this.page.locator('.ant-modal-content:visible').filter({ hasText: 'Upload Media to My Ads' }).first();
+  }
+  get uploadModalCloseBtn() { return this.uploadModal.locator('button.ant-modal-close').first(); }
+  get uploadDropZone() {
+    return this.uploadModal.locator('[aria-label="Drop files or browse to upload"]').first();
+  }
+  // Hidden input — Playwright can setInputFiles on it without opening a file chooser
+  get uploadFileInput() { return this.uploadModal.locator('input[type="file"]').first(); }
+  get uploadFileRows() {
+    return this.uploadModal.locator('div[style*="border: 1px solid rgb(229, 229, 231)"]');
+  }
+  get uploadCounter() {
+    return this.uploadModal.locator('span').filter({ hasText: /\d+\/50 files selected/ }).first();
+  }
+  // Primary footer button: "Upload" / "Upload N files"
+  get uploadConfirmBtn() { return this.uploadModal.locator('button.ant-btn-primary').first(); }
+  // Secondary footer button: "Cancel", becomes "Close" once an upload finishes
+  get uploadDismissBtn() { return this.uploadModal.locator('button.ant-btn-default').first(); }
+  // Warning banner shown inside the modal when a row fails
+  get uploadFailureAlert() { return this.uploadModal.locator('.ant-alert-message').first(); }
+  uploadRowDeleteBtn(n = 0) {
+    return this.uploadFileRows.nth(n).locator('button').filter({
+      has: this.page.locator('span[aria-label="delete"]'),
+    }).first();
+  }
+  uploadRowRetryBtn(n = 0) {
+    return this.uploadFileRows.nth(n).locator('button').filter({
+      has: this.page.locator('span[aria-label="reload"]'),
+    }).first();
+  }
+
+  async openUploadModal() {
+    await this.uploadButton.click();
+    await this.uploadModal.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  get uploadSuccessToast() { return this.page.locator('.ant-message-notice-success').first(); }
+  get uploadWarningToast() { return this.page.locator('.ant-message-notice-warning').first(); }
+
+  // Records the text of every toast that appears, and returns a getter for the collected list.
+  // Arm BEFORE the action: Ant toasts auto-dismiss in ~3s, so anything that takes longer than
+  // that — an upload, for instance — outlives its own toast and a later assertion finds nothing.
+  async watchForToasts() {
+    await this.page.evaluate(() => {
+      window.__kwikToasts = [];
+      const capture = () => document.querySelectorAll('.ant-message-notice').forEach((n) => {
+        const text = (n.innerText || '').trim();
+        if (text && !window.__kwikToasts.includes(text)) window.__kwikToasts.push(text);
+      });
+      capture();
+      window.__kwikToastObs = new MutationObserver(capture);
+      window.__kwikToastObs.observe(document.body, { subtree: true, childList: true });
+    });
+
+    // Deliberately does NOT disconnect: callers poll this, and disconnecting on the first read
+    // would stop recording. The observer dies with the page.
+    return async () => this.page.evaluate(() => window.__kwikToasts || []);
+  }
+
+  // Waits for an in-flight upload to resolve and reports WHICH way it went, rather than just
+  // timing out. The row text is the signal: "· Uploaded" on success, "· FAILED" on failure.
+  // Uploads are intermittently rejected on the first attempt, so a test needs to tell the two
+  // apart to report the defect precisely.
+  async waitForUploadOutcome(timeout = 90000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const text = await this.uploadModal.innerText().catch(() => '');
+      if (/FAILED/.test(text)) return 'failed';
+      if (/·\s*Uploaded/i.test(text)) return 'uploaded';
+      await this.page.waitForTimeout(500);
+    }
+    return 'timeout';
+  }
+
+  async getUploadSelectedCount() {
+    const text = await this.uploadCounter.innerText();
+    return parseInt(text.match(/(\d+)\/50/)?.[1] ?? '0', 10);
+  }
+
   // ── Select mode ──────────────────────────────────────────────────────────────
   get addToCollectionButton() {
     return this.adsLibraryContent.locator('button').filter({ hasText: 'Add to Collection' }).first();
