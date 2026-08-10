@@ -5,7 +5,13 @@ import { Competitor } from '../../../../pages/competitor';
 
 // Only the modal flow is serial — tests 1 (open) to 3 (cancel) are read-only,
 // test 4 (confirm) permanently merges cards 0+1 and must run last.
-test.describe.serial('Merge modal flow', () => {
+test.describe('Merge modal flow', () => {
+  // 'default', not 'serial': the first three tests each open the merge modal fresh in
+  // beforeEach, so they do not depend on each other — only the destructive Confirm & Merge has
+  // to run last, and 'default' already preserves declaration order in one worker.
+  // Under 'serial' a failure in test 1 skipped the other three at 0ms, hiding three real results.
+  test.describe.configure({ mode: 'default' });
+
   let competitor;
   let brand1;
   let brand2;

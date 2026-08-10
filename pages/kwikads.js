@@ -19,6 +19,11 @@ export class KwiksAdsCreativeAgent {
     // "Start Your Payments KYC" promo modal — appears intermittently after selecting a merchant
     // Dashboard-level loading spinner (shown while the merchant switch reloads data)
     this.pageLoader           = this.page.locator('span[aria-label="loading"]').first();
+    // Full-screen blocking overlay the shell renders while it boots: z-[2000], fixed inset-0.
+    // Nothing waited for it, so clicks landed on the overlay instead of the target — the CI call
+    // logs show "<div data-testid=global-loader …> intercepting action" then 110+ retries until
+    // the timeout. That is the single biggest source of the beforeEach failures.
+    this.globalLoader         = this.page.locator('[data-testid="global-loader"]');
     this.kycModal             = this.page.locator('div.fixed.inset-0').filter({ hasText: 'Start Your Payments KYC' });
     this.kycModalRemindLater  = this.kycModal.locator('button').filter({ hasText: 'Remind me later' });
   }
@@ -88,6 +93,13 @@ export class KwiksAdsCreativeAgent {
   // up with a real UI wait or assertion, which is the signal that actually matters.
   async _settleNetwork(timeout = 15000) {
     await this.page.waitForLoadState('networkidle', { timeout }).catch(() => {});
+    await this._waitForGlobalLoader();
+  }
+
+  // Waits out the blocking shell overlay. Non-fatal: if it never clears, carry on and let the
+  // caller's own wait produce the error, which is more informative than "loader still up".
+  async _waitForGlobalLoader(timeout = 60000) {
+    await this.globalLoader.first().waitFor({ state: 'hidden', timeout }).catch(() => {});
   }
 
   // Auto-dismisses the KYC promo modal whenever it becomes visible and would block an
@@ -125,6 +137,7 @@ export class KwiksAdsCreativeAgent {
     // Wait for the header to finish rendering before clicking. The global actionTimeout (20s) is
     // right for ordinary in-page clicks but too tight for the post-login shell, which is the
     // slowest moment of any test — that is what turned this into a beforeEach failure.
+    await this._waitForGlobalLoader();
     await this.merchantChangeButton.waitFor({ state: 'visible', timeout: 60000 });
     await this.merchantChangeButton.click({ timeout: 60000 });
     await this.merchantDialog.waitFor({ state: 'visible' });
@@ -145,6 +158,7 @@ export class KwiksAdsCreativeAgent {
     // this runs. Wait for it instead of racing it — clicking a sidebar that is still mounting
     // either does nothing or hits a stale node, which is why the Creative Agent step
     // intermittently never happened or took far too long.
+    await this._waitForGlobalLoader();
     await this.kwidAdsSideBar.waitFor({ state: 'visible', timeout: 60000 });
     await this.kwidAdsSideBar.click({ timeout: 60000 });
 
