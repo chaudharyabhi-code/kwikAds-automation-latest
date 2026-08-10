@@ -38,7 +38,10 @@ test('Merged group - View Ads navigates to Ad Library with brand filter applied'
 
 // Delete modal check (cancel) and confirm delete must run in serial —
 // confirm permanently removes the merged group card.
-test.describe.serial('Merged group - Delete flow', () => {
+test.describe('Merged group - Delete flow', () => {
+  // 'default' keeps the destructive confirm last without skipping the other test when it fails.
+  test.describe.configure({ mode: 'default' });
+
 
   test('Delete opens modal with correct buttons', async () => {
     await competitor.deleteCompetitor(mergedCard);

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../pages/kwikads';
 import { AdsLibrary } from '../pages/ads-library';
 import { Competitor } from '../pages/competitor';
@@ -30,6 +30,11 @@ const MAX_ROUNDS = 3;
 test('seed saved competitors', async ({ page }) => {
   test.setTimeout(600000);
 
+  // BEST EFFORT. This is a setup PROJECT, so anything it throws fails the project and Playwright
+  // then skips every dependent test at 0ms — one bad seed silently dropped ~35 competitor tests.
+  // The specs re-establish their own preconditions now (ensureCompetitors / ensureMergedGroup),
+  // so a failure here should degrade, not cascade.
+  try {
   await new KwiksAdsCreativeAgent(page).goto();
   const competitor = new Competitor(page);
   const adsLibrary = new AdsLibrary(page);
@@ -88,5 +93,11 @@ test('seed saved competitors', async ({ page }) => {
       `Competitor tests needing more will skip.`
     );
   }
-  expect(after).toBeGreaterThan(0);
+    if (after === 0) {
+      console.warn('no saved competitors after seeding — specs will top up individually');
+    }
+  } catch (error) {
+    console.warn(`competitor seeding did not complete: ${error.message}`);
+    console.warn('specs will establish their own competitors via ensureCompetitors()');
+  }
 });
