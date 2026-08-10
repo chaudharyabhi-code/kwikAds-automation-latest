@@ -277,6 +277,28 @@ export class Competitor {
     return -1;
   }
 
+  // Guarantees at least `min` saved competitors, topping up from the Ad Library when short.
+  // Returns the resulting count.
+  //
+  // Self-healing on purpose: the delete and merge specs consume competitors, and they run in
+  // parallel with the specs that need them. Ordering the projects instead worked, but a single
+  // failure in the read-only project then skipped every mutating test. Re-establishing the
+  // precondition here removes the dependency entirely.
+  //
+  // Cheap when the merchant is already populated — one page load and a count.
+  async ensureCompetitors(min, adsLibrary) {
+    await this.navigate();
+    let count = await this.countAllCards();
+    if (count >= min) return count;
+
+    await adsLibrary.navigateToAdsLibrary();
+    await adsLibrary.seedCompetitorsFromBrands(min - count);
+
+    await this.navigate();
+    count = await this.countAllCards();
+    return count;
+  }
+
   // Guarantees a merged group exists and returns its index, merging the first two cards when
   // none is present. Returns -1 only if there are fewer than 2 competitors to merge.
   //

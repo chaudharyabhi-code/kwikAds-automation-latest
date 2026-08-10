@@ -162,8 +162,16 @@ export default defineConfig({
       },
       dependencies: ['setup', 'competitor-setup'],
     },
-    /* Deletes and merges, plus the specs that read a merged group. Depends on the read-only
-       competitor project, so nothing is still reading the list when these start consuming it. */
+    /* Deletes and merges, plus the specs that read a merged group.
+       Depends on 'chromium-competitor' so every read-only test finishes before anything starts
+       deleting. Measured both ways: with the dependency 36 pass / 3 fail, without it 34 / 5 —
+       removing it lets deletes remove cards mid-test, and the merge-selection and count specs
+       fail on a list that moved under them.
+       The dependency does mean Playwright skips this whole project if the read-only one has ANY
+       failure. That is a reason to keep the read-only project green, not a reason to drop the
+       ordering: 4 races on every run is worse than 18 skips on a bad one.
+       The specs also self-heal (ensureCompetitors / ensureMergedGroup), which handles a consumed
+       precondition independently of the ordering. */
     {
       name: 'chromium-competitor-mutating',
       testMatch: COMPETITOR_MUTATING,

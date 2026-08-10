@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { AdsLibrary } from '../../../../pages/ads-library';
 import { Competitor } from '../../../../pages/competitor';
 
 let competitor;
@@ -14,8 +15,11 @@ test.beforeEach(async ({ page }) => {
   await new KwiksAdsCreativeAgent(page).goto();
   competitor = new Competitor(page);
   await competitor.navigate();
+  // Self-healing: top up rather than skip, so this does not depend on running before or after
+  // the other mutating specs that consume competitors.
+  await competitor.ensureCompetitors(2, new AdsLibrary(page));
   CARD_INDEX = await competitor.findPlainCardIndex();
-  test.skip(CARD_INDEX === -1, 'No non-merged competitor available to delete');
+  expect(CARD_INDEX, 'no non-merged competitor available to delete even after topping up').not.toBe(-1);
 });
 
 // ─── Test 1: Modal appears ────────────────────────────────────────────────────

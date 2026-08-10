@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { AdsLibrary } from '../../../../pages/ads-library';
 import { Competitor } from '../../../../pages/competitor';
 
 let competitor;
@@ -11,8 +12,9 @@ test.beforeEach(async ({ page }) => {
   await competitor.navigate();
   // A merchant may have no (or too few) saved competitors — skip rather than
   // index into an empty list.
-  const cardCount = await competitor.countAllCards();
-  test.skip(cardCount < 1, `Needs at least 1 saved competitor(s); found ${cardCount}`);
+  // Self-healing: top up rather than skip
+  const cardCount = await competitor.ensureCompetitors(2, new AdsLibrary(page));
+  expect(cardCount, 'could not establish any saved competitors').toBeGreaterThan(0);
   // Sync runs at most once per day. While the "Synced today" badge is showing, the
   // Sync button will not start a new sync and no progress popover ever appears.
   test.skip(await competitor.isSyncedToday(), 'Competitors already synced today — cannot trigger a new sync');
