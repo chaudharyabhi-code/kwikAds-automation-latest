@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { AdsLibrary } from '../../../../pages/ads-library';
 import { Competitor } from '../../../../pages/competitor';
 
 // Only the modal flow is serial — tests 1 (open) to 3 (cancel) are read-only,
@@ -19,8 +20,9 @@ test.describe.serial('Merge modal flow', () => {
     await competitor.navigate();
 
     // A merchant may have fewer than 2 saved competitors — merging needs two.
-    const cardCount = await competitor.countAllCards();
-    test.skip(cardCount < 2, `Needs at least 2 saved competitors; found ${cardCount}`);
+    // Self-healing: top up rather than skip — merging needs two, and the delete specs consume them
+    const cardCount = await competitor.ensureCompetitors(2, new AdsLibrary(page));
+    expect(cardCount, 'need 2 saved competitors to merge; could not establish them').toBeGreaterThanOrEqual(2);
 
     brand1 = (await competitor.getCardName(0).innerText()).trim();
     brand2 = (await competitor.getCardName(1).innerText()).trim();

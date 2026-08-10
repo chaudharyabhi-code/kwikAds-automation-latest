@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
+import { AdsLibrary } from '../../../../pages/ads-library';
 import { Competitor } from '../../../../pages/competitor';
 
 let competitor;
@@ -11,8 +12,9 @@ test.beforeEach(async ({ page }) => {
   await competitor.navigate();
   // A merchant may have no (or too few) saved competitors — skip rather than
   // index into an empty list.
-  const cardCount = await competitor.countAllCards();
-  test.skip(cardCount < 1, `Needs at least 1 saved competitor(s); found ${cardCount}`);
+  // Self-healing: top up rather than skip
+  const cardCount = await competitor.ensureCompetitors(2, new AdsLibrary(page));
+  expect(cardCount, 'could not establish any saved competitors').toBeGreaterThan(0);
 });
 
 test('Deleted competitor - no longer appears in search results', async () => {
@@ -35,6 +37,11 @@ test('Deleted competitor - no longer appears in search results', async () => {
   // Search for the deleted brand name
   await competitor.search(brandName);
 
-  // Competitor cards list must not contain the deleted brand name as saved
-  await expect(competitor.competitorCards).not.toContainText(brandName);
+  // Assert ABSENCE as a count of matching cards, not with not.toContainText.
+  //
+  // The deleted brand yields no search results at all, so competitorCards resolves to ZERO
+  // elements — and Playwright fails not.toContainText on an empty list with "element(s) not
+  // found" rather than passing it. The success case was therefore reported as a failure.
+  // Filtering by the brand and expecting 0 holds whether or not other cards remain.
+  await expect(competitor.competitorCards.filter({ hasText: brandName })).toHaveCount(0);
 });
