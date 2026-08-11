@@ -26,10 +26,10 @@ import { AdsLibrary } from '../../../pages/ads-library';
 // they fight: the removal test confirmed a removal and then found the brand saved again,
 // because another test had re-tagged it mid-flight (measured — 37 matches where 1 was expected).
 //
-// Reading brandNameText counts: it is a bare exact-text match over the whole page, and a brand
-// that is a SAVED competitor renders that text more than once, while a brand that has been
-// removed still matches exactly once in the search results. So >1 means saved and 1 means
-// removed — never toBeVisible(), which trips strict mode on the multi-node saved case.
+// "Is this brand saved?" is asserted on the competitor CARD, never on brandNameText(). That
+// helper is a page-wide exact-text match, so it hits the brand once per ad the brand has —
+// measured 37 matches while saved and 36 after removal for the same brand, so it cannot tell
+// the two states apart. savedCompetitorCard() is 1 when saved and 0 when removed.
 
 test.describe.serial('Competitor Icon', () => {
   let adsLibrary;
@@ -59,7 +59,7 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
 
-    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
+    await expect(adsLibrary.savedCompetitorCard(brandName)).toHaveCount(1);
   });
 
   test('clicking competitor icon on saved brand opens Remove Competitor modal', async () => {
@@ -81,7 +81,7 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.removeCompetitorModal.waitFor({ state: 'hidden' });
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
-    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
+    await expect(adsLibrary.savedCompetitorCard(brandName)).toHaveCount(1);
   });
 
   test('pressing Escape on Remove Competitor modal closes it without removing the brand', async ({ page }) => {
@@ -98,7 +98,7 @@ test.describe.serial('Competitor Icon', () => {
     // Brand must still be in saved competitors — verify via Competitors page
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
-    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
+    await expect(adsLibrary.savedCompetitorCard(brandName)).toHaveCount(1);
   });
 
   test('removed competitor no longer appears on Competitors page', async () => {
@@ -114,9 +114,9 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
 
-    // One match remains after removal — the brand is still in the search results, it is just
-    // no longer a saved competitor card.
-    await expect(adsLibrary.brandNameText(brandName)).toHaveCount(1);
+    // The brand itself is still in the search results — it is only the saved-competitor card
+    // that must be gone.
+    await expect(adsLibrary.savedCompetitorCard(brandName)).toHaveCount(0);
   });
 
 });
