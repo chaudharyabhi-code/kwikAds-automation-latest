@@ -3,8 +3,13 @@ import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 import { Collections } from '../../../pages/collections';
 
+// Per-run suffix — a fixed name that survived a failed cleanup made the next run's
+// createCollection() hang on the duplicate-name error toast, taking the rest of the .serial
+// block with it.
+const RUN = Math.random().toString(36).slice(2, 8);
+
 // Disposable collection used for the save-and-verify serial tests
-const SAVE_TARGET = 'playwright-save-verify';
+const SAVE_TARGET = `playwright-save-verify ${RUN}`;
 
 let adsLibrary, collections;
 
@@ -191,7 +196,7 @@ test.describe.serial('Create a new collection inline via "+ New Collection" in t
 // ── Re-saving the same ad to a collection it's already in ─────────────────────
 
 test.describe.serial('Re-saving the same ad to a collection it already belongs to', () => {
-  const RESAVE_COLLECTION = 'playwright-resave-test';
+  const RESAVE_COLLECTION = `playwright-resave-test ${RUN}`;
   // Ad count the modal advertised before the re-save, shared across the tests below
   let countInModalBeforeResave = 1;
 
@@ -249,14 +254,9 @@ test.describe.serial('Re-saving the same ad to a collection it already belongs t
   test('After re-saving, the collection detail still shows at least the original ad count', async () => {
     await collections.navigate();
 
-    const targetCard = collections.getCardByName(RESAVE_COLLECTION).first();
-    await targetCard.waitFor({ state: 'visible' });
-    await targetCard.click();
-
-    const spinner = collections.pageSpinner;
-    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
-    await collections.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
+    // Search-then-open: the grid paginates, so a name filter on the raw grid can miss the
+    // card entirely once the merchant has more than one page of collections.
+    await collections.searchAndOpenCollection(RESAVE_COLLECTION);
 
     // Count must be >= the count the modal showed before re-saving
     // (app may add a duplicate → +1, or prevent duplicates → unchanged)
@@ -312,14 +312,9 @@ test.describe.serial('Save to Collection — full save and verify flow', () => {
   test('After saving, opening the target collection shows the ad in "Showing 1 ad" count', async () => {
     await collections.navigate();
 
-    const targetCard = collections.collectionCards.filter({ hasText: SAVE_TARGET }).first();
-    await targetCard.waitFor({ state: 'visible' });
-    await targetCard.click();
-
-    const spinner = collections.pageSpinner;
-    await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
-    await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
-    await collections.detailSelectButton.waitFor({ state: 'visible', timeout: 15000 });
+    // Search-then-open — the grid paginates, so the freshly created card is not guaranteed
+    // to be on the page the grid renders first.
+    await collections.searchAndOpenCollection(SAVE_TARGET);
 
     const adCount = await collections.getDetailAdCount();
     expect(adCount).toBe(1);

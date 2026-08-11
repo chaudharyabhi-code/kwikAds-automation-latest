@@ -41,6 +41,17 @@ export const DRAFT_CARD_MENU = [
   'Share Creative', 'Download Creative', 'Save to Collection', 'Copy ID', 'Delete Draft',
 ];
 
+
+// ── Performance view (My Ads → Performance) ──────────────────────────────────
+export const VIEW_DATA_BY_TABS = ['Ad Level', 'Hook', 'Narration', 'Message Style', 'Visual Style'];
+export const PERF_COLUMNS = [
+  'Ad creative', 'Ad Spends', 'Velocity', 'Impressions', 'Clicks', 'CTR',
+  'Orders', 'Revenue', 'ROAS', 'Total Unique Reach', 'Benchmark',
+];
+// Defaults the view opens with. NOTE: the test case says FORMAT = Video in its expected result
+// but FORMAT = ALL in its title — the app shows "All", which is what this asserts.
+export const PERF_DEFAULTS = { status: 'Active', format: 'All', sortBy: 'Spend', order: 'Desc' };
+
 export class MyAds {
   constructor(page) {
     this.page = page;
@@ -515,6 +526,66 @@ export class MyAds {
   async getModalAdId() {
     const text = await this.adDetailModal.innerText();
     return text.match(/\b(?:Ad\s+)?ID\s*:?\s*(\d+)/i)?.[1] ?? null;
+  }
+
+
+  // ── Performance view ─────────────────────────────────────────────────────────
+  // The Ads/Performance toggle carries its own class, which separates it from the
+  // All/Meta/Draft sub-tabs that use the same Ant segmented control.
+  get viewModeSegmented() { return this.adsLibraryContent.locator('.viewmode-segmented').first(); }
+  get adsViewTab() { return this.viewModeSegmented.locator('label').filter({ hasText: /^Ads$/ }).first(); }
+  get performanceViewTab() {
+    return this.viewModeSegmented.locator('label').filter({ hasText: 'Performance' }).first();
+  }
+  async getActiveViewMode() {
+    return (await this.viewModeSegmented.locator('label.ant-segmented-item-selected')
+      .first().innerText()).trim();
+  }
+
+  get perfSearchInput() {
+    return this.adsLibraryContent.locator('input[placeholder*="Search performance ads"]').first();
+  }
+  get perfResultsCount() {
+    return this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of \d+ ads/ }).first();
+  }
+  // Performance has its own FORMAT filter; the Ads view calls the equivalent "Ad Format"
+  get perfFormatFilter() {
+    return this.filtersDiv.locator('label').filter({ hasText: /^Format$/i })
+      .locator('..').locator('.ant-select').first();
+  }
+  get perfDateRange() { return this.filtersDiv.locator('.ant-picker-range').first(); }
+  get perfOrderButton() {
+    return this.filtersDiv.locator('button').filter({ hasText: /^(Desc|Asc)$/ }).first();
+  }
+  viewDataByTab(name) {
+    return this.adsLibraryContent.locator('button').filter({ hasText: new RegExp(`^${name}$`) }).first();
+  }
+  // The selected tab is painted white with a shadow; the others are transparent
+  async isViewDataByTabActive(name) {
+    const style = (await this.viewDataByTab(name).getAttribute('style')) ?? '';
+    return style.includes('rgb(255, 255, 255)');
+  }
+  get perfTable() { return this.adsLibraryContent.locator('table').first(); }
+  get perfRows() { return this.perfTable.locator('tbody tr[data-index]'); }
+  get perfEmptyState() {
+    return this.adsLibraryContent.getByText('No performance data found for this period').first();
+  }
+
+  // Selected value of an Ant select, e.g. "Active"
+  async getSelectValue(filter) {
+    return (await filter.locator('.ant-select-selection-item').first().innerText()).trim();
+  }
+
+  async openPerformanceView() {
+    await this.performanceViewTab.click();
+    await this.perfSearchInput.waitFor({ state: 'visible', timeout: 20000 });
+    await this.waitForFilter();
+  }
+
+  async openAdsView() {
+    await this.adsViewTab.click();
+    await this.searchInput.waitFor({ state: 'visible', timeout: 20000 });
+    await this.waitForFilter();
   }
 
   rankingFilter(name) {

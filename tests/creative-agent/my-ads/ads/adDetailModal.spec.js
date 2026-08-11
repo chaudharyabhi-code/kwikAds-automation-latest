@@ -24,9 +24,6 @@ test.afterEach(async () => {
   const name = createdCollection;
   createdCollection = null;
   await collections.navigate().catch(() => {});
-  // Search first: the grid paginates, so deleteCollectionByName would not find a collection
-  // that is not on the first page and cleanup would silently leave it behind.
-  await collections.search(name).catch(() => {});
   await collections.deleteCollectionByName(name).catch(() => {});
 });
 

@@ -34,6 +34,14 @@ const COLLECTION_DEPENDENT = [
   '**/ads-library/selectMode.spec.js',
 ];
 
+/* Sync runs at most once per merchant per day, so these specs are the least deterministic in
+   the suite — they routinely skip themselves on the "Synced today" guard and their popover
+   assertions are timing-bound. While they lived in 'chromium-competitor' a single sync flake
+   failed that project and Playwright then skipped all 18 tests of the mutating project that
+   depends on it. They only need one saved competitor to exist, so they get their own project
+   that nothing depends on and that gates nothing. */
+const COMPETITOR_SYNC = ['**/competitor/sync/**/*.spec.js'];
+
 const COMPETITOR_MUTATING = [
   '**/competitor/delete/**/*.spec.js',
   '**/competitor/merge/merge.spec.js',
@@ -153,7 +161,7 @@ export default defineConfig({
     {
       name: 'chromium-competitor',
       testMatch: '**/competitor/**/*.spec.js',
-      testIgnore: COMPETITOR_MUTATING,
+      testIgnore: [...COMPETITOR_MUTATING, ...COMPETITOR_SYNC],
       use: {
         ...devices['Desktop Chrome'],
         viewport: VIEWPORT,
@@ -182,6 +190,22 @@ export default defineConfig({
         storageState: '.auth/user.json',
       },
       dependencies: ['setup', 'competitor-setup', 'chromium-competitor'],
+    },
+    /* Sync specs — see COMPETITOR_SYNC above. Deliberately NOT in the dependency chain in
+       either direction: nothing waits on it, so a sync flake now costs only the test that
+       flaked instead of that test plus 18 skips. They read card 0 and need one competitor;
+       the delete specs top the list up rather than drain it, so running alongside them is
+       safe. */
+    {
+      name: 'chromium-competitor-sync',
+      testMatch: COMPETITOR_SYNC,
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: VIEWPORT,
+        deviceScaleFactor: undefined,
+        storageState: '.auth/user.json',
+      },
+      dependencies: ['setup', 'competitor-setup'],
     },
 
 

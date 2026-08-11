@@ -2,51 +2,73 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
 
-// All 4 tests operate on row 0, first card.
-// Server-side competitor state persists across tests (serial execution):
+// Tag/untag a competitor from an ad card, via that card's 3-dot menu.
 //
-//   Test 1 — add competitor  → verify success toast
-//   Test 2 — verify brand appears on Competitors page (state from Test 1)
-//   Test 3 — click remove icon → verify modal text → cancel  (brand stays saved)
-//   Test 4 — click remove icon → confirm remove → verify gone from Competitors page
+// Two things this file used to assume, both false:
+//
+// 1. A dedicated competitor icon on the card. It is gone from the app — a card now renders only
+//    "KAAI analysis ready", "Request Creative" and "More options", hover or no hover. The
+//    action survives as a menu item whose label flips between "Tag Competitor" and "Remove
+//    Competitor" depending on whether the brand is already saved.
+// 2. That row 0 / first card is ONE stable subject across all five tests, so test 1 could tag
+//    it and tests 3-5 inherit that. The Ad Library does not order cards stably across logins:
+//    test 2 confirmed a brand was saved, and test 3 — fresh login, same position — found a
+//    different brand whose menu still read "Tag Competitor". That is what the old .serial
+//    chain was papering over, at the cost of four skips whenever the first test failed.
+//
+// So each test now establishes its own precondition against the card actually in front of it
+// instead of inheriting one. That is what removes the cascade risk: the first test no longer
+// fails deterministically, and no test is built on the assumption that an earlier one left the
+// right state behind.
+//
+// .serial is RETAINED, though — for the shared resource, not for the chain. All five tests act
+// on the same card-0 brand and tag/untag it, which is one per-merchant record. Run in parallel,
+// they fight: the removal test confirmed a removal and then found the brand saved again,
+// because another test had re-tagged it mid-flight (measured — 37 matches where 1 was expected).
+//
+// Reading brandNameText counts: it is a bare exact-text match over the whole page, and a brand
+// that is a SAVED competitor renders that text more than once, while a brand that has been
+// removed still matches exactly once in the search results. So >1 means saved and 1 means
+// removed — never toBeVisible(), which trips strict mode on the multi-node saved case.
 
 test.describe.serial('Competitor Icon', () => {
   let adsLibrary;
-  // Brand name of row 0 / first card — the single subject of every test below
-  let brandName;
 
-  // Shared setup: log in, land on Ad Library, and capture the brand under test.
+  // Shared setup: log in, land on Ad Library.
   test.beforeEach(async ({ page }) => {
     await new KwiksAdsCreativeAgent(page).goto();
     adsLibrary = new AdsLibrary(page);
     await adsLibrary.navigateToAdsLibrary();
-    brandName = await adsLibrary.getFirstCardBrandName();
   });
 
-  // ─── Test 1 ───────────────────────────────────────────────────────────────
-  // Brand is NOT a competitor at the start of the suite.
   test('clicking competitor icon on non-saved brand shows success toast', async () => {
-    await adsLibrary.clickTagCompetitorBtn(0, 'first');
+    const brandName = await adsLibrary.getFirstCardBrandName();
+    // Precondition: this brand must NOT be saved yet, or there is nothing to tag.
+    await adsLibrary.untagFirstCardIfTagged();
+
+    expect(await adsLibrary.openCardCompetitorMenu()).toBe('Tag Competitor');
+    await adsLibrary.clickCardCompetitorMenuItem();
 
     await expect(adsLibrary.successToast).toBeVisible();
     await expect(adsLibrary.successToast).toContainText(`${brandName} saved as competitor`);
   });
 
-  // ─── Test 2 ───────────────────────────────────────────────────────────────
-  // Brand is now a saved competitor from Test 1.
   test('saved competitor appears on Competitors page after adding', async () => {
-    await adsLibrary.navigateToCompetitors();
+    const brandName = await adsLibrary.ensureFirstCardTagged();
 
+    await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
 
-    // Exactly one competitor card should match the brand name
-    await expect(adsLibrary.brandNameText(brandName)).not.toHaveCount(1) && await expect(adsLibrary.brandNameText(brandName)).not.toHaveCount(0);
+    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
   });
 
-  // ─── Test 3 ───────────────────────────────────────────────────────────────
-  // Brand is still a saved competitor. Click remove → verify modal → cancel.
   test('clicking competitor icon on saved brand opens Remove Competitor modal', async () => {
-    await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
+    const brandName = await adsLibrary.ensureFirstCardTagged();
+
+    // The same menu item reads "Remove Competitor" once the brand is saved — that flip is
+    // part of the behaviour under test.
+    expect(await adsLibrary.openCardCompetitorMenu()).toBe('Remove Competitor');
+    await adsLibrary.clickCardCompetitorMenuItem();
 
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
     await expect(adsLibrary.removeCompetitorModal).toContainText('Are you sure you want to remove');
@@ -54,15 +76,19 @@ test.describe.serial('Competitor Icon', () => {
     await expect(adsLibrary.removeCompetitorCancelBtn).toBeVisible();
     await expect(adsLibrary.removeCompetitorConfirmBtn).toBeVisible();
 
-    // Cancel — keep brand saved for Test 4
+    // Cancel — the brand must stay saved
     await adsLibrary.removeCompetitorCancelBtn.click();
     await adsLibrary.removeCompetitorModal.waitFor({ state: 'hidden' });
+    await adsLibrary.navigateToCompetitors();
+    await adsLibrary.searchCompetitor(brandName);
+    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
   });
 
-  // ─── Test 4 ───────────────────────────────────────────────────────────────
-  // Brand is still a saved competitor. Press Escape → modal closes, brand stays.
   test('pressing Escape on Remove Competitor modal closes it without removing the brand', async ({ page }) => {
-    await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
+    const brandName = await adsLibrary.ensureFirstCardTagged();
+
+    await adsLibrary.openCardCompetitorMenu();
+    await adsLibrary.clickCardCompetitorMenuItem();
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
 
     // Press Escape — must close modal without triggering removal
@@ -72,13 +98,14 @@ test.describe.serial('Competitor Icon', () => {
     // Brand must still be in saved competitors — verify via Competitors page
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
-    await expect(adsLibrary.brandNameText(brandName)).toBeVisible();
+    expect(await adsLibrary.brandNameText(brandName).count()).toBeGreaterThan(1);
   });
 
-  // ─── Test 5 ───────────────────────────────────────────────────────────────
-  // Brand is still a saved competitor. Confirm removal and verify it's gone.
   test('removed competitor no longer appears on Competitors page', async () => {
-    await adsLibrary.clickRemoveCompetitorBtn(0, 'first');
+    const brandName = await adsLibrary.ensureFirstCardTagged();
+
+    await adsLibrary.openCardCompetitorMenu();
+    await adsLibrary.clickCardCompetitorMenuItem();
     await expect(adsLibrary.removeCompetitorModal).toBeVisible();
 
     await adsLibrary.removeCompetitorConfirmBtn.click();
@@ -87,7 +114,8 @@ test.describe.serial('Competitor Icon', () => {
     await adsLibrary.navigateToCompetitors();
     await adsLibrary.searchCompetitor(brandName);
 
-    // Brand should not appear in results after removal
+    // One match remains after removal — the brand is still in the search results, it is just
+    // no longer a saved competitor card.
     await expect(adsLibrary.brandNameText(brandName)).toHaveCount(1);
   });
 
