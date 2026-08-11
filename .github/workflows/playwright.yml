@@ -42,11 +42,18 @@ jobs:
           CI: true
           PLAYWRIGHT_BROWSERS_PATH: 0
 
+      - name: Confirm the session file was written
+        run: ls -la .auth/
+
       - name: Share the session with the shards
         uses: actions/upload-artifact@v4
         with:
           name: auth-state
           path: .auth/
+          # REQUIRED: ".auth" is a hidden directory (leading dot) and upload-artifact@v4 skips
+          # hidden files by default, so this reported "No files were found with the provided
+          # path: .auth/" even though the login had written user.json correctly.
+          include-hidden-files: true
           # Fail loudly rather than handing the shards an empty artifact, which would send every
           # one of them back to logging in and reproduce the lockout.
           if-no-files-found: error
