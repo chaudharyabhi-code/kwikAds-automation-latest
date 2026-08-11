@@ -255,6 +255,16 @@ this.archivedAdBadges = this.adsLibraryContent
     return this.adsLibraryContent.getByText(name, { exact: true });
   }
 
+  // Saved-competitor CARD for a brand on the Competitors tab.
+  //
+  // Use this, not brandNameText(), to decide whether a brand is a saved competitor.
+  // brandNameText is a page-wide exact-text match, so it hits the brand once per ad the brand
+  // has — measured 37 while saved and 36 after removal for the same brand. It cannot tell the
+  // two states apart. The card can: 1 when saved, 0 when removed.
+  savedCompetitorCard(name) {
+    return this.adsLibraryContent.locator('[data-competitor-id]').filter({ hasText: name });
+  }
+
   // ── Grid scrolling / checkbox toggling (keep raw DOM APIs out of the specs) ──
 
   // Scrolls the virtualised ad grid down by `px` so virtuoso renders the next rows
