@@ -2,38 +2,23 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { Collections } from '../../../pages/collections';
 
-// Serial so the beforeAll-discovered cardIndex is shared safely across all tests in one worker.
-test.describe.serial('Collection detail view — selection mode (requires a collection with ads)', () => {
-  let cardIndex = -1;
+// The collection-setup project seeds this one with two ads before the project runs, so the
+// subject is known up front. The previous version discovered it in a beforeAll that opened
+// every collection in the grid in turn — on a merchant with dozens that blew the 120s hook
+// budget, and the hook failure skipped all five tests below it.
+const SEED_NAME = 'playwright-seeded-with-ad';
+
+// NOT .serial. It only ever was so the tests could share the beforeAll-discovered index, and
+// that cost five results every time the hook or the first test failed. Each test now finds the
+// seeded collection itself and none of them removes an ad, so they are independent.
+test.describe('Collection detail view — selection mode (requires a collection with ads)', () => {
   let collections;
 
-  // Find the first user-created collection that contains at least 1 ad.
-  test.beforeAll(async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: '.auth/user.json' });
-    const page = await ctx.newPage();
-    await new KwiksAdsCreativeAgent(page).goto();
-    const c = new Collections(page);
-    await c.navigate();
-    const total = await c.getRenderedCardCount();
-    for (let i = 1; i < total; i++) { // skip index 0 (Saved Ads)
-      await c.openCollection(i);
-      const count = await c.getDetailAdCount();
-      await c.goBackToCollections();
-      if (count >= 1) { cardIndex = i; break; }
-    }
-    await ctx.close();
-  });
-
-  // Each test opens the discovered collection fresh and enters selection mode.
-  // Calling test.skip() here skips every test in the block when beforeAll found
-  // no suitable collection — so no test needs to repeat that guard.
   test.beforeEach(async ({ page }) => {
-    test.skip(cardIndex === -1, 'No collection with ads found');
-
     await new KwiksAdsCreativeAgent(page).goto();
     collections = new Collections(page);
     await collections.navigate();
-    await collections.openCollection(cardIndex);
+    await collections.searchAndOpenCollection(SEED_NAME);
     await collections.enterDetailSelectionMode();
   });
 
@@ -49,8 +34,9 @@ test.describe.serial('Collection detail view — selection mode (requires a coll
   });
 
   test('Multiple ads can be selected simultaneously (requires a collection with 2+ ads)', async () => {
-    const adCount = await collections.getDetailAdCount();
-    if (adCount < 2) test.skip(true, 'Collection has fewer than 2 ads — skipping multi-select test');
+    // No skip guard: collection-setup seeds two ads, so a shortfall here is a seeding
+    // failure worth reporting rather than a precondition the merchant may legitimately lack.
+    expect(await collections.getDetailAdCount()).toBeGreaterThanOrEqual(2);
 
     await collections.selectAdInDetail(0);
     await collections.selectAdInDetail(1);

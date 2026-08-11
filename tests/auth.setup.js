@@ -20,11 +20,23 @@ setup('authenticate', async ({ browser }) => {
     const context = await browser.newContext({ storageState: AUTH_FILE });
     const page = await context.newPage();
 
-    const stillValid = await page
-      .goto(process.env.BASE_URL)
-      .then(() => page.waitForURL(/executive-summary/, { timeout: 20000 }))
-      .then(() => true)
-      .catch(() => false);
+    // Confirm the session actually lands AUTHENTICATED, not just that /executive-summary
+    // appeared once. Waiting on the URL alone accepted a dead session: the app routed there
+    // briefly, then bounced to /login, and every test in the run was handed that dead session
+    // and died waiting for a merchant switcher that only exists when logged in.
+    const stillValid = await (async () => {
+      try {
+        await page.goto(process.env.BASE_URL);
+        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+        if (/\/login/.test(page.url())) return false;
+        // The header merchant switcher only renders for an authenticated shell
+        await page.locator('button[type="button"] span[role="img"]').last()
+          .waitFor({ state: 'visible', timeout: 20000 });
+        return !/\/login/.test(page.url());
+      } catch {
+        return false;
+      }
+    })();
     await context.close();
 
     if (stillValid) {

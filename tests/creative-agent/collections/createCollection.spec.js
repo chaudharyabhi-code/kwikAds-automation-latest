@@ -2,21 +2,29 @@ import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { Collections } from '../../../pages/collections';
 
-const NAME_ONLY    = 'playwright-test-name-only';
-const NAME_AND_DESC = 'playwright-test-with-desc';
+// Per-run suffix. With fixed names, any run that died before afterAll cleanup left the
+// collection behind, and the next run's create hit "A collection with this name already
+// exists" — the modal correctly stayed open, createCollection()'s hidden-wait timed out, and
+// .serial then skipped the rest of the block. The duplicate-name test below still works
+// because test 1 creates NAME_ONLY within this same run.
+const RUN           = Math.random().toString(36).slice(2, 8);
+const NAME_ONLY     = `playwright-test-name-only ${RUN}`;
+const NAME_AND_DESC = `playwright-test-with-desc ${RUN}`;
 
 // All tests in this block create collections — serial ensures cleanup runs last.
+// The badge count is NOT asserted against countBefore ± 1 anywhere here. It is a
+// per-merchant total, and the other collection specs create and delete on that same merchant
+// from parallel workers, so the absolute number moves mid-test — measured 55 where 54 was
+// expected. Existence of the named collection is the behaviour these tests are actually about,
+// and it is immune to that drift. saveToCollection.spec.js reached the same conclusion.
 test.describe.serial('Create new collection', () => {
   let collections;
-  // Collection count captured right after landing, before each test mutates anything.
-  let countBefore;
 
-  // Shared setup: log in, land on the Collections tab, record the starting count.
+  // Shared setup: log in, land on the Collections tab.
   test.beforeEach(async ({ page }) => {
     await new KwiksAdsCreativeAgent(page).goto();
     collections = new Collections(page);
     await collections.navigate();
-    countBefore = await collections.getCollectionCount();
     // Every test in this block starts from the open New Collection modal
     await collections.openNewCollectionModal();
   });
@@ -27,8 +35,8 @@ test.describe.serial('Create new collection', () => {
     await expect(collections.successToast).toBeVisible({ timeout: 10000 });
     await expect(collections.successToast).toContainText(NAME_ONLY);
 
-    const countAfter = await collections.getCollectionCount();
-    expect(countAfter).toBe(countBefore + 1);
+    await collections.search(NAME_ONLY);
+    await expect(collections.getCardByName(NAME_ONLY)).toBeVisible();
   });
 
   test('Create with board name and description - card appears with "by you" attribution and today\'s date', async () => {
@@ -36,10 +44,11 @@ test.describe.serial('Create new collection', () => {
 
     await expect(collections.successToast).toBeVisible({ timeout: 10000 });
 
-    const countAfter = await collections.getCollectionCount();
-    expect(countAfter).toBe(countBefore + 1);
+    // Newly created card appears in the grid. Searched for, not scanned: the grid paginates
+    // and the new collection is not guaranteed to land on the page it renders first — this
+    // assertion failed on a card that had just been created successfully.
+    await collections.search(NAME_AND_DESC);
 
-    // Newly created card appears in the grid
     const newCard = collections.getCardByName(NAME_AND_DESC);
     await expect(newCard).toBeVisible();
     await expect(collections.getCardAttributionByName(NAME_AND_DESC)).toContainText('by you');
@@ -49,13 +58,10 @@ test.describe.serial('Create new collection', () => {
     await collections.boardNameInput.fill(NAME_ONLY);
     await collections.createCollectionCreateBtn.click();
 
-    // Duplicate is blocked — error toast appears, modal stays open, count unchanged
+    // Duplicate is blocked — error toast appears and the modal stays open
     await expect(collections.errorToast).toBeVisible({ timeout: 10000 });
     await expect(collections.errorToast).toContainText('A collection with this name already exists');
     await expect(collections.createCollectionModal).toBeVisible();
-
-    const countAfter = await collections.getCollectionCount();
-    expect(countAfter).toBe(countBefore);
   });
 
   // Remove the collections created above so re-runs start from a clean slate

@@ -95,8 +95,10 @@ test('Select mode - clicking a selected card deselects it and decrements count t
 test('Add to Collection - saves 2 selected ads and collection count increases by 2', async ({ page }) => {
   // ── Step 1: Record the actual ad count inside the first collection ──────────
   await adsLibrary.navigateToCollections();
-  // A merchant may have no collections at all — nothing to save into.
-  test.skip(await adsLibrary.collectionListCards.count() === 0, 'No collection available to save into');
+  // No skip guard: this spec runs in the chromium-collections project, which depends on
+  // collection-setup, so a collection is guaranteed to exist. The old guard read the card
+  // count before the grid had rendered and skipped on a merchant that had dozens;
+  // openFirstCollectionCard() waits for the grid and reports a real failure if it stays empty.
   await adsLibrary.openFirstCollectionCard();
 
   const collectionName = await adsLibrary.getOpenCollectionName();
@@ -147,8 +149,10 @@ test('Add to Collection - saves 2 selected ads and collection count increases by
 test('Add to Collection - modal shows the collection\'s actual current ad count', async ({ page }) => {
   // Actual count, read from the collection itself
   await adsLibrary.navigateToCollections();
-  // A merchant may have no collections at all — nothing to save into.
-  test.skip(await adsLibrary.collectionListCards.count() === 0, 'No collection available to save into');
+  // No skip guard: this spec runs in the chromium-collections project, which depends on
+  // collection-setup, so a collection is guaranteed to exist. The old guard read the card
+  // count before the grid had rendered and skipped on a merchant that had dozens;
+  // openFirstCollectionCard() waits for the grid and reports a real failure if it stays empty.
   await adsLibrary.openFirstCollectionCard();
   const collectionName = await adsLibrary.getOpenCollectionName();
   const actualCount    = await adsLibrary.getOpenCollectionAdCount();

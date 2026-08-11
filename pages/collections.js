@@ -267,14 +267,30 @@ export class Collections {
     await this.page.waitForLoadState('networkidle');
   }
 
-  // Finds a collection card by name and deletes it (including confirmation modal)
+  // Finds a collection card by name and deletes it (including confirmation modal).
+  //
+  // Searches first, then clears the filter. The grid PAGINATES, so filtering the raw grid by
+  // name found nothing for any collection not on the rendered page — including one this same
+  // test had just created. That failed the delete outright, and left the disposable
+  // collections of every other spec behind, which is what made their fixed names collide on
+  // the next run. Clearing the filter before returning keeps the badge count callers read
+  // afterwards unfiltered.
   async deleteCollectionByName(name) {
+    await this.search(name);
     const card = this.collectionCardsGrid.locator('> div').filter({ hasText: name });
     await card.locator('[aria-label="delete"]').click();
     await this.deleteModal.waitFor({ state: 'visible', timeout: 5000 });
     await this.deleteConfirmBtn.click();
     await this.deleteModal.waitFor({ state: 'hidden', timeout: 10000 });
+    await this.search('');
     await this.page.waitForLoadState('networkidle');
+  }
+
+  // Searches for a collection by name and opens it. Same pagination reason as
+  // deleteCollectionByName: an index scan over every card is both slow and blind to later pages.
+  async searchAndOpenCollection(name) {
+    await this.search(name);
+    await this.openCollectionByName(name);
   }
 
   // Waits for the loader that fires after clicking "Save to Collection" from the 3-dot menu,

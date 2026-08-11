@@ -244,6 +244,8 @@ this.archivedAdBadges = this.adsLibraryContent
   // are kept only so older references keep resolving.
   cardShareButton(card)      { return card.locator('button[title="Share Creative"]').first(); }
   cardDownloadButton(card)   { return card.locator('button[title="Download Creative"]').first(); }
+  // Kept for callers that still reference it; the app no longer renders this button on a card
+  // — see openCardCompetitorMenu() for the surviving entry point.
   cardCompetitorButton(card) { return card.locator('button[title="Tag Competitor"], button[title="Remove Competitor"]').first(); }
   cardMenuTrigger(card)      { return card.locator('button.ant-dropdown-trigger').first(); }
 
@@ -754,22 +756,56 @@ this.archivedAdBadges = this.adsLibraryContent
     return (await row.locator('h4').first().textContent()).trim();
   }
 
-  // Clicks "Tag Competitor" on the given row/side; caller asserts the toast
-  async clickTagCompetitorBtn(row = 0, side = 'first') {
-    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
-    await rowLocator.waitFor({ state: 'visible' });
-    const btn = rowLocator.locator('button[title="Tag Competitor"]');
-    if (side === 'first') await btn.first().click();
-    else await btn.last().click();
+  // Ad-card competitor entry point.
+  //
+  // The card no longer carries a dedicated icon button. It used to, and the old helpers here
+  // clicked button[title="Tag Competitor"] / button[title="Remove Competitor"] inside the
+  // card — probed against the live app, an ad card now renders exactly three buttons ("KAAI
+  // analysis ready", "Request Creative", "More options"), before AND after hover. The action
+  // survives only in the 3-dot menu, where one item flips its label between "Tag Competitor"
+  // and "Remove Competitor" depending on whether the brand is already saved.
+
+  // Opens the first card's 3-dot menu and returns the competitor item's current label.
+  async openCardCompetitorMenu() {
+    await this.openFirstCardMenu();
+    return (await this.cardMenuTagCompetitor.innerText()).trim();
   }
 
-  // Clicks "Remove Competitor" on the given row/side; caller asserts the modal
-  async clickRemoveCompetitorBtn(row = 0, side = 'first') {
-    const rowLocator = this.adCardList.locator(`[data-index="${row}"]`);
-    await rowLocator.waitFor({ state: 'visible' });
-    const btn = rowLocator.locator('button[title="Remove Competitor"]');
-    if (side === 'first') await btn.first().click();
-    else await btn.last().click();
+  // Clicks the competitor item in an already-open card menu, then waits for the menu to close.
+  async clickCardCompetitorMenuItem() {
+    await this.cardMenuTagCompetitor.click();
+    await this.cardDropdownMenu.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+  }
+
+  // Guarantees the first card's brand IS a saved competitor, and returns its brand name.
+  // The Ad Library does not return cards in a stable order across logins, so a test cannot
+  // rely on a previous test having tagged whatever now sits at row 0 — it has to establish
+  // the state it needs against the card actually in front of it.
+  async ensureFirstCardTagged() {
+    const label = await this.openCardCompetitorMenu();
+    if (/Remove Competitor/i.test(label)) {
+      await this.closeCardMenu();
+    } else {
+      await this.clickCardCompetitorMenuItem();
+      await this.successToast.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
+      await this.page.waitForLoadState('networkidle');
+    }
+    return this.getFirstCardBrandName();
+  }
+
+  // Guarantees the first card's brand is NOT a saved competitor, so a suite that starts from
+  // "not yet tagged" is not derailed by an earlier run that died before its final remove.
+  async untagFirstCardIfTagged() {
+    if (!/Remove Competitor/i.test(await this.openCardCompetitorMenu())) {
+      await this.closeCardMenu();
+      return false;
+    }
+    await this.clickCardCompetitorMenuItem();
+    await this.removeCompetitorModal.waitFor({ state: 'visible', timeout: 10000 });
+    await this.removeCompetitorConfirmBtn.click();
+    await this.removeCompetitorModal.waitFor({ state: 'hidden', timeout: 10000 });
+    await this.page.waitForLoadState('networkidle');
+    return true;
   }
 
   async navigateToCompetitors() {
@@ -1107,6 +1143,11 @@ this.archivedAdBadges = this.adsLibraryContent
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    // Both spinner waits are best-effort, so on a run where the spinner never showed this
+    // returned mid-render. Specs then read collectionListCards.count() as 0 and skipped with
+    // "No collection available to save into" on a merchant that has dozens. Swallow the
+    // timeout so a genuinely empty merchant still reaches that guard.
+    await this.collectionListCards.first().waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
   }
 
   // Opens the first collection card visible in the collections list
