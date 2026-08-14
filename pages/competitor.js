@@ -73,14 +73,14 @@ export class Competitor {
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.savedCompetitorsHeading.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Clicks the Competitors tab and waits for the list to reload — used to return from Ad Library
   async backToCompetitorsTab() {
     await this.competitorsTab.click({ force: true });
     await this.savedCompetitorsHeading.waitFor({ state: 'visible', timeout: 15000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // True when the page shows the "Synced today" badge. Competitor sync is limited to
@@ -104,7 +104,7 @@ export class Competitor {
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Returns the numeric count from "Saved Competitors (N)"
@@ -117,7 +117,7 @@ export class Competitor {
   // Scrolls to the bottom of the page to ensure all cards are rendered, then returns the count
   async countAllCards() {
     await this.page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     return this.competitorCards.count();
   }
 
@@ -380,6 +380,6 @@ export class Competitor {
     await spinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.savedCompetitorsHeading.waitFor({ state: 'visible', timeout: 30000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 }

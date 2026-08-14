@@ -52,6 +52,31 @@ export const PERF_COLUMNS = [
 // but FORMAT = ALL in its title — the app shows "All", which is what this asserts.
 export const PERF_DEFAULTS = { status: 'Active', format: 'All', sortBy: 'Spend', order: 'Desc' };
 
+// Strips currency, commas and spaces so two spellings of the same number compare equal. The
+// modal groups digits the Indian way ("₹2,27,040") where the table groups them plainly
+// ("₹227,040") — identical values, and a raw string comparison fails on the comma positions.
+export function normaliseMetric(text) {
+  return String(text ?? '').replace(/[₹,\s]/g, '');
+}
+
+// The table prints a metric in full where the modal abbreviates it once it grows: the row reads
+// "2,030" and the modal "2K", the row "1,397" and the modal "1.4K". K = thousand, L = lakh.
+// One decimal place, and a trailing ".0" is dropped — the app writes 2,030 as "2K", not "2.0K".
+// A ₹ prefix and a % or x suffix are carried through; anything below 1,000 is left untouched.
+//   "2,030" → "2K"      "1,397" → "1.4K"      "₹52,777" → "₹52.8K"      "1,52,777" → "1.5L"
+export function abbreviateMetric(text) {
+  const raw = String(text ?? '').trim();
+  const parts = raw.match(/^(₹)?\s*([\d,]+(?:\.\d+)?)\s*(%|x)?$/i);
+  if (!parts) return raw;
+
+  const [, currency = '', digits, suffix = ''] = parts;
+  const value = parseFloat(digits.replace(/,/g, ''));
+  if (!Number.isFinite(value) || value < 1000) return raw;
+
+  const [scaled, unit] = value >= 100000 ? [value / 100000, 'L'] : [value / 1000, 'K'];
+  return `${currency}${scaled.toFixed(1).replace(/\.0$/, '')}${unit}${suffix}`;
+}
+
 export class MyAds {
   constructor(page) {
     this.page = page;
@@ -202,7 +227,7 @@ export class MyAds {
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.adCardList.waitFor({ state: 'visible', timeout: 30000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Types a search term and presses Enter, then waits for the loader
@@ -252,7 +277,7 @@ export class MyAds {
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 15000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // ── Ad card anatomy (card-scoped factories) ──────────────────────────────────
@@ -510,15 +535,47 @@ export class MyAds {
     await this.adDetailModal.waitFor({ state: 'visible', timeout: 15000 });
   }
 
+  // Escape is the fallback because the × is not always clickable: the click resolved to the right
+  // button and then burned the full 20s action timeout without landing, the modal's video player
+  // overlaying it. Ant closes on Escape, so the modal shuts either way.
   async closeAdDetailModal() {
-    await this.adDetailModalClose.click();
-    await this.adDetailModal.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.adDetailModalClose.click({ timeout: 8000 }).catch(async () => {
+      await this.page.keyboard.press('Escape');
+    });
+    await this.adDetailModal.waitFor({ state: 'hidden', timeout: 10000 }).catch(async () => {
+      await this.page.keyboard.press('Escape');
+      await this.adDetailModal.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+    });
   }
 
   get modalNextAdBtn() { return this.adDetailModal.locator('button[aria-label="Next ad"]').first(); }
 
   async openModalTab(name) {
     await this.modalTab(name).click();
+  }
+
+  // The KAAI Analysis tab lays every attribute out the same way — a label cell followed by its
+  // tags — so one lookup by label serves Hook Type, Structure, Message Angle, Product Show and
+  // every other field, instead of a selector per dimension.
+  //
+  // Returns the FIRST tag of that row as { starred, text }. The app stars only the top-ranked
+  // tag, so first-in-document-order and starred are the same tag; `starred` is returned rather
+  // than assumed so a test can prove it. The star is stripped from `text`, and the label is
+  // capitalised in CSS, which innerText already applies.
+  async getKaaiTopTag(fieldLabel) {
+    return this.adDetailModal.evaluate((modal, label) => {
+      const labelCell = [...modal.querySelectorAll('div')]
+        .find(el => !el.children.length && el.innerText.trim() === label);
+      const tag = labelCell?.parentElement?.querySelector('.ant-tag');
+      if (!tag) return null;
+      const raw = tag.innerText.trim();
+      return { starred: raw.startsWith('★'), text: raw.replace(/^★\s*/, '').trim() };
+    }, fieldLabel);
+  }
+
+  // Heading the KAAI tab renders once its analysis is on screen
+  get modalKaaiHeading() {
+    return this.adDetailModal.getByText('KAAI Creative Analysis').first();
   }
 
   // A Meta creative's modal reads "Ad ID: 1202…"; a DRAFT's reads just "ID: 4" — it has no
@@ -546,7 +603,9 @@ export class MyAds {
     return this.adsLibraryContent.locator('input[placeholder*="Search performance ads"]').first();
   }
   get perfResultsCount() {
-    return this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of \d+ ads/ }).first();
+    // [\d,]+ — the total is thousands-separated ("30 of 2,081 ads"), which \d+ cannot match.
+    // It only ever passed because STATUS defaults to Active, and that count is small.
+    return this.adsLibraryContent.locator('span').filter({ hasText: /\d+ of [\d,]+ ads/ }).first();
   }
   // Performance has its own FORMAT filter; the Ads view calls the equivalent "Ad Format"
   get perfFormatFilter() {
@@ -566,7 +625,18 @@ export class MyAds {
     return style.includes('rgb(255, 255, 255)');
   }
   get perfTable() { return this.adsLibraryContent.locator('table').first(); }
-  get perfRows() { return this.perfTable.locator('tbody tr[data-index]'); }
+  // A data row is one that carries either an eye icon (a single ad) or an expand chevron (a
+  // group). Neither `tr[data-index]` nor a bare `tbody tr` works:
+  //   - tr[data-index] only matches Ad Level, which is the one virtualised tab. The grouped tabs
+  //     render ordinary rows, so it found nothing and a populated Hook tab looked empty.
+  //   - bare `tbody tr` also matched rows that hold no ad — virtuoso's trailing filler row, and
+  //     a merchant row — which arrived in assertions as blank name/format/status and read as
+  //     "the filter returned a row of the wrong status".
+  get perfRows() {
+    return this.perfTable.locator('tbody tr').filter({
+      has: this.page.locator('button:has([aria-label="eye"]), span.anticon-right, span.anticon-down'),
+    });
+  }
   get perfEmptyState() {
     return this.adsLibraryContent.getByText('No performance data found for this period').first();
   }
@@ -586,6 +656,284 @@ export class MyAds {
     await this.adsViewTab.click();
     await this.searchInput.waitFor({ state: 'visible', timeout: 20000 });
     await this.waitForFilter();
+  }
+
+  // ── Performance filters ──────────────────────────────────────────────────────
+  // Option labels of any Ant select, read from the open dropdown and then closed again.
+  async getSelectOptions(filter) {
+    await filter.click();
+    const dropdown = this.openDropdown.last();
+    await dropdown.waitFor({ state: 'visible' });
+    const options = await dropdown.locator('.ant-select-item-option').evaluateAll(
+      els => els.map(e => (e.getAttribute('title') ?? e.innerText).trim()));
+    await this.page.keyboard.press('Escape');
+    await dropdown.waitFor({ state: 'hidden' }).catch(() => {});
+    return options;
+  }
+
+  // Selects an option in any Ant select. Scoped to the OPEN dropdown: Ant leaves every
+  // dropdown it has ever opened in the DOM, so an unscoped lookup can click an option
+  // belonging to a different, hidden filter.
+  async selectFilterOption(filter, option) {
+    await filter.click();
+    const dropdown = this.openDropdown.last();
+    await dropdown.waitFor({ state: 'visible' });
+    await dropdown.getByTitle(option, { exact: true }).click();
+    await this.waitForFilter();
+  }
+
+  async selectPerfFormat(option) {
+    await this.selectFilterOption(this.perfFormatFilter, option);
+  }
+
+  // name: 'Quality' | 'Engagement' | 'Conversion'
+  async selectRanking(name, tier) {
+    await this.selectFilterOption(this.rankingFilter(name), tier);
+  }
+
+  async togglePerfOrder() {
+    await this.perfOrderButton.click();
+    await this.waitForFilter();
+  }
+
+  // Both ends of the range picker, as displayed ("2026-07-12")
+  async getPerfDateValues() {
+    return this.perfDateRange.locator('input').evaluateAll(els => els.map(e => e.value));
+  }
+
+  async setPerfDateRange(from, to) {
+    const inputs = this.perfDateRange.locator('input');
+    await inputs.first().click();
+    await inputs.first().fill(from);
+    await this.page.keyboard.press('Enter');
+    await inputs.nth(1).fill(to);
+    await this.page.keyboard.press('Enter');
+    await this.page.locator('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)')
+      .first().waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
+    await this.waitForFilter();
+  }
+
+  // One entry per rendered row: { name, format, status } — the first column prints the name,
+  // then a "Video · Active" subtitle, which is the only place the row exposes either.
+  async getPerfRows() { return this._parsePerfRows(this.perfRows); }
+
+  // Only the rows that represent a single ad. On Ad Level that is every row; on the grouped
+  // tabs it is the ads revealed underneath an expanded group.
+  async getPerfAdRows() { return this._parsePerfRows(this.perfAdRows); }
+
+  // Reads the subtitle from its OWN element rather than splitting innerText on newlines. Some
+  // rows render name and subtitle without a line break between them, and the newline-based
+  // parser then returned the two stuck together as the name with an empty format and status —
+  // which surfaced as "STATUS = Archived returned rows of another status" against rows whose
+  // subtitle plainly read "Video · Archived".
+  async _parsePerfRows(rows) {
+    return rows.evaluateAll(els => els.map(row => {
+      const cell = row.querySelector('td');
+      if (!cell) return { name: '', format: '', status: '' };
+
+      const squash = text => (text ?? '').replace(/\s+/g, ' ').trim();
+      // The subtitle is the innermost element reading "Format · Status"
+      const subtitle = squash([...cell.querySelectorAll('*')].reverse()
+        .find(el => !el.children.length && el.textContent.includes('·'))?.textContent);
+
+      const full = squash(cell.innerText);
+      const [format = '', status = ''] = subtitle.split('·').map(s => s.trim());
+      return { name: subtitle ? squash(full.replace(subtitle, '')) : full, format, status };
+    }));
+  }
+
+  // Cell text of one column, looked up by its header so a column reorder cannot silently
+  // shift the assertion onto a neighbouring metric.
+  async getPerfColumnValues(header) { return this._perfColumnValues(header, this.perfRows); }
+
+  // Same, but only the single-ad rows — on a grouped tab row 0 is the group, so a comparison
+  // against the ad whose modal is open has to skip it.
+  async getPerfAdColumnValues(header) { return this._perfColumnValues(header, this.perfAdRows); }
+
+  async _perfColumnValues(header, rows) {
+    const headers = await this.perfTable.locator('thead th').evaluateAll(
+      els => els.map(e => e.innerText.trim()));
+    const index = headers.findIndex(h => h.toLowerCase() === header.toLowerCase());
+    if (index === -1) {
+      throw new Error(`No "${header}" column in the performance table. Columns: ${headers.join(' | ')}`);
+    }
+    return rows.evaluateAll(
+      (els, i) => els.map(r => (r.querySelectorAll('td')[i]?.innerText ?? '').trim()), index);
+  }
+
+  // Every metric tile in the open ad detail modal as { LABEL: value }, e.g.
+  // { 'AD SPEND': '₹2,044', 'ROAS': '2.9x', 'CLICK-THROUGH RATE': '4.76%' }.
+  // Each tile is a label <p> immediately followed by its value <p>. Keys are upper-cased
+  // because the labels are uppercased in CSS, and innerText returns them already transformed.
+  async getModalMetrics() {
+    return this.adDetailModal.evaluate(modal => {
+      const metrics = {};
+      modal.querySelectorAll('p').forEach(label => {
+        const value = label.nextElementSibling;
+        if (value?.tagName === 'P') {
+          metrics[label.innerText.trim().toUpperCase()] = value.innerText.trim();
+        }
+      });
+      return metrics;
+    });
+  }
+
+  // Same column as numbers, so specs never parse display strings themselves.
+  // "₹4,959" → 4959, "4.2K" → 4200, "3.92%" → 3.92, "2.4x" → 2.4, "—" → null (no data).
+  async getPerfMetricValues(header) {
+    return (await this.getPerfColumnValues(header)).map(text => {
+      const cleaned = text.replace(/[₹,\s%]/g, '').replace(/x$/i, '');
+      const match = cleaned.match(/^(-?[\d.]+)([KMB])?$/i);
+      if (!match) return null;
+      const multiplier = { k: 1e3, m: 1e6, b: 1e9 }[(match[2] ?? '').toLowerCase()] ?? 1;
+      return parseFloat(match[1]) * multiplier;
+    });
+  }
+
+  // Total from the "X of Y ads" counter, or 0 when the view is showing its empty state.
+  async getPerfTotal() {
+    if (await this.perfEmptyState.isVisible().catch(() => false)) return 0;
+    return (await this.getResultsLoadedAndTotal()).total;
+  }
+
+  // The eye icon is what identifies a single-ad row: Ad Level gives every row one, while the
+  // grouped tabs (Hook / Narration / Message Style / Visual Style) list a collapsed group row
+  // first — "Non KAAI · 18 ads" — and only reveal ad rows, with their icons, once it is opened.
+  get perfEyeIcons() { return this.perfRows.locator('button:has([aria-label="eye"])'); }
+  get perfAdRows() {
+    return this.perfRows.filter({ has: this.page.locator('button:has([aria-label="eye"])') });
+  }
+  perfRowEyeIcon(n = 0) {
+    return this.perfAdRows.nth(n).locator('button:has([aria-label="eye"])').first();
+  }
+
+  // Group rows carry the expand chevron; ad rows never do.
+  get perfGroupRows() {
+    return this.perfRows.filter({ has: this.page.locator('span.anticon-right, span.anticon-down') });
+  }
+  perfGroupExpandIcon(n = 0) {
+    return this.perfGroupRows.nth(n).locator('span.anticon-right, span.anticon-down').first();
+  }
+  // Ant swaps the chevron's direction rather than adding a class: right = collapsed, down = open
+  async isPerfGroupExpanded(n = 0) {
+    return (await this.perfGroupExpandIcon(n).getAttribute('aria-label')) === 'down';
+  }
+
+  // The group title, e.g. "Non KAAI" — the value the rows are grouped by. Shares the row parser
+  // so it cannot drift from it, and so it is immune to the same missing-newline case.
+  async getPerfGroupTitles() {
+    return (await this._parsePerfRows(this.perfGroupRows)).map(row => row.name);
+  }
+
+  // Clicking a group row expands it. Waits on the ad rows actually appearing rather than a
+  // fixed delay, since the group fetches its ads on expand.
+  async expandPerfGroup(n = 0) {
+    const before = await this.perfAdRows.count();
+    await this.perfRows.nth(n).click();
+    await expect.poll(() => this.perfAdRows.count(), { timeout: 20000, intervals: [500] })
+      .toBeGreaterThan(before);
+  }
+
+  async collapsePerfGroup(n = 0) {
+    await this.perfRows.nth(n).click();
+    await expect.poll(() => this.perfAdRows.count(), { timeout: 20000, intervals: [500] }).toBe(0);
+  }
+
+  // The dimension tabs force FORMAT to Video and disable it; Ad Level leaves it editable.
+  async isPerfFormatLocked() {
+    return this.perfFormatFilter.evaluate(el => el.className.includes('ant-select-disabled'));
+  }
+
+  // First column header — "Ad creative" on Ad Level, the dimension name on a grouped tab
+  get perfFirstColumnHeader() { return this.perfTable.locator('thead th').first(); }
+
+  // Text of the action buttons in a row: "Competitor Tracker" on a group, "Creative Signals"
+  // on an ad. The eye icon has no text, so it drops out.
+  async getPerfGroupButtons(n = 0) { return this._perfRowButtons(this.perfGroupRows.nth(n)); }
+  async getPerfAdButtons(n = 0) { return this._perfRowButtons(this.perfAdRows.nth(n)); }
+  async _perfRowButtons(row) {
+    return row.locator('button').evaluateAll(
+      els => els.map(e => e.innerText.trim()).filter(Boolean));
+  }
+
+  async openPerfAdDetail(n = 0) {
+    await this.perfRowEyeIcon(n).scrollIntoViewIfNeeded();
+    await this.perfRowEyeIcon(n).click();
+    await this.adDetailModal.waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  // ── Performance search ───────────────────────────────────────────────────────
+  // The × inside the search box, and the "CLEAR ALL" chip that appears beside it
+  get perfClearSearchButton() {
+    return this.adsLibraryContent.locator('button[title="Clear search"]').first();
+  }
+  get perfClearAllButton() {
+    return this.adsLibraryContent.locator('button').filter({ hasText: /^Clear all$/i }).first();
+  }
+
+  // Counter text, in either shape the view uses: "30 of 276 ads" on Ad Level, "9 groups · 255
+  // ads" on a dimension tab.
+  async _perfCounterText() {
+    return this.adsLibraryContent.locator('span')
+      .filter({ hasText: /\d+ of [\d,]+ ads|[\d,]+ groups? ·/ }).first()
+      .innerText().catch(() => '');
+  }
+
+  // Waits for the COUNTER to change, not just for rows to exist. The previous results stay on
+  // screen while the search request is in flight, so "some rows are present" is satisfied
+  // immediately and a count read straight after returned the pre-search list — which made a
+  // no-match search look like it returned 24 ads, and would let "the search returned my ad" pass
+  // against the unfiltered grid. Non-fatal: two searches with identical results leave the counter
+  // unchanged, and that is not a failure.
+  async searchPerf(query) {
+    const before = await this._perfCounterText();
+    await this.perfSearchInput.click();
+    await this.perfSearchInput.press('ControlOrMeta+a');
+    await this.perfSearchInput.press('Delete');
+    await this.perfSearchInput.pressSequentially(query, { delay: 15 });
+    // Enter SUBMITS the search — there is no debounce on this box. Measured: six seconds after
+    // typing, the counter still read "30 of 276 ads" with 24 rows, and only became "0 of 0 ads"
+    // once Enter was pressed. Without it the grid stayed unfiltered, so every assertion that
+    // merely looked for an ad among the results passed against the full, unsearched list.
+    await this.perfSearchInput.press('Enter');
+    await this.waitForFilter();
+    await expect.poll(() => this._perfCounterText(), { timeout: 15000, intervals: [500] })
+      .not.toBe(before).catch(() => {});
+    await this._waitForPerfContent();
+  }
+
+  // Same counter-change wait as searchPerf: the searched results stay on screen until the cleared
+  // query comes back, so returning immediately reports the still-filtered grid.
+  async clearPerfSearch() {
+    const before = await this._perfCounterText();
+    await this.perfClearSearchButton.click();
+    await this.waitForFilter();
+    await expect.poll(() => this._perfCounterText(), { timeout: 15000, intervals: [500] })
+      .not.toBe(before).catch(() => {});
+    await this._waitForPerfContent();
+  }
+
+  async clickPerfClearAll() {
+    await this.perfClearAllButton.click();
+    await this.waitForFilter();
+    await this._waitForPerfContent();
+  }
+
+  // Switches the VIEW DATA BY tab (Ad Level / Hook / Narration / Message Style / Visual Style)
+  async openViewDataByTab(name) {
+    await this.viewDataByTab(name).click();
+    await this.waitForFilter();
+    await this._waitForPerfContent();
+  }
+
+  // Rows are virtualised and mount after the network settles, so a count taken straight after
+  // waitForFilter() reads 0 on a tab that does have data. Non-fatal: a genuinely empty tab with
+  // no empty state is a finding for the test to report, not a poll timeout to drown it in.
+  async _waitForPerfContent(timeout = 30000) {
+    await expect.poll(async () => {
+      if (await this.perfRows.count() > 0) return true;
+      return this.perfEmptyState.isVisible().catch(() => false);
+    }, { timeout, intervals: [500] }).toBe(true).catch(() => {});
   }
 
   rankingFilter(name) {
@@ -678,25 +1026,23 @@ export class MyAds {
   }
 
   // Clicks the Status dropdown and selects the given option ("All", "Active", "Paused", "Archived")
+  // All three delegate to selectFilterOption, which scopes the option lookup to the dropdown
+  // that is actually open. They used to search '.ant-select-dropdown' unscoped, and Ant keeps
+  // every dropdown it has ever opened in the DOM: once a second filter had been opened, an
+  // option label shared between them ("All" is on Status, Format and all three Rankings)
+  // matched more than once and the click failed on strict mode.
   async selectStatus(status) {
-    await this.statusFilter.click();
-    await this.page.locator('.ant-select-dropdown').getByTitle(status, { exact: true }).click();
-    await this.waitForFilter();
+    await this.selectFilterOption(this.statusFilter, status);
   }
 
   // Sort By dropdown ("Recently Added", "Spend", "Orders", "CTR", ...)
   async selectSortBy(option) {
-    await this.sortByFilter.click();
-    await this.openDropdown.waitFor({ state: 'visible' });
-    await this.openDropdown.getByTitle(option, { exact: true }).click();
-    await this.waitForFilter();
+    await this.selectFilterOption(this.sortByFilter, option);
   }
 
   // Clicks the KAAI Analysis dropdown and selects the given option ("All", "KAAI Analysed", "Not Analysed")
   async selectKaaiOption(option) {
-    await this.kaaiFilter.click();
-    await this.page.locator('.ant-select-dropdown').getByTitle(option, { exact: true }).click();
-    await this.waitForFilter();
+    await this.selectFilterOption(this.kaaiFilter, option);
   }
 
   // Opens the KAAI coverage popover by clicking the KAAI XX% button
