@@ -44,7 +44,11 @@ export class Collections {
 
     // ── Collection detail view ───────────────────────────────────────────────
     // Sticky header visible once a collection card is opened
-    this.detailBackButton   = this.adsLibraryContent.locator('button.ant-btn-text.ant-btn-icon-only').first();
+    // :visible matters — the search box renders a hidden clear (×) button with these same
+    // classes, and it sits earlier in the DOM, so a bare .first() resolved to it and waited out
+    // 15s for a button that never shows. Only reproduces when a collection is opened after a
+    // search, which is the reliable way to reach one (the grid paginates).
+    this.detailBackButton   = this.adsLibraryContent.locator('button.ant-btn-text.ant-btn-icon-only:visible').first();
     this.detailName         = this.adsLibraryContent.locator('[style*="font-size: 18px"]').first();
     // "N ad · by user@example.com"
     this.detailAdCountInfo  = this.adsLibraryContent.locator('[style*="font-size: 13px"]').filter({ hasText: /\d+ ad/ }).first();
@@ -121,7 +125,7 @@ export class Collections {
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.newCollectionButton.waitFor({ state: 'visible', timeout: 30000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Parses the numeric count from the badge next to the search bar
@@ -264,7 +268,7 @@ export class Collections {
     await this.createCollectionCreateBtn.click();
     // Button shows a loader while the API call is in flight — wait for the modal to close
     await this.createCollectionModal.waitFor({ state: 'hidden', timeout: 15000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Finds a collection card by name and deletes it (including confirmation modal).
@@ -283,7 +287,7 @@ export class Collections {
     await this.deleteConfirmBtn.click();
     await this.deleteModal.waitFor({ state: 'hidden', timeout: 10000 });
     await this.search('');
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Searches for a collection by name and opens it. Same pagination reason as
@@ -309,7 +313,7 @@ export class Collections {
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Opens the Nth collection card and waits for the detail view to load (loader appears
@@ -325,7 +329,7 @@ export class Collections {
     await this.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.detailBackButton.waitFor({ state: 'visible', timeout: 15000 });
     await this.detailAdCountInfo.waitFor({ state: 'visible', timeout: 15000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // 3-dot menu trigger on the Nth ad card inside an open collection
@@ -341,7 +345,7 @@ export class Collections {
     await this.pageSpinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.detailBackButton.waitFor({ state: 'visible', timeout: 15000 });
     await this.detailAdCountInfo.waitFor({ state: 'visible', timeout: 15000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // True when the open collection contains no ads (empty-state placeholder shown).
@@ -353,7 +357,7 @@ export class Collections {
   async goBackToCollections() {
     await this.detailBackButton.click();
     await this.newCollectionButton.waitFor({ state: 'visible', timeout: 10000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Clicks "Select" to enter selection mode.
@@ -381,7 +385,7 @@ export class Collections {
     const spinner = this.adsLibraryContent.locator("span[aria-label='loading']").first();
     await spinner.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {});
     await spinner.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Parses the numeric ad count from the detail header info text e.g. "1 ad · by user@example.com"
@@ -409,7 +413,7 @@ export class Collections {
   async clickSaveToCollectionRow(collectionName) {
     await this.saveToCollectionItem.filter({ hasText: collectionName }).first().click();
     await this.saveToCollectionModal.waitFor({ state: 'hidden', timeout: 10000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Clicks "+ New Collection" inside the Save to Collection modal and waits for the inline mini-modal
@@ -424,6 +428,6 @@ export class Collections {
     await this.inlineNewCollectionInput.fill(name);
     await this.inlineNewCollectionCreateAddBtn.click();
     await this.inlineNewCollectionModal.waitFor({ state: 'hidden', timeout: 15000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 }

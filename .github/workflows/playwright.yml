@@ -65,7 +65,7 @@ jobs:
         with:
           name: auth-failure
           path: test-results/
-          retention-days: 7
+          retention-days: 1
 
   test:
     needs: [auth]
@@ -121,7 +121,7 @@ jobs:
         with:
           name: test-results-shard-${{ matrix.shard }}
           path: test-results/
-          retention-days: 7
+          retention-days: 2
 
   merge-reports:
     if: always()
@@ -155,4 +155,4 @@ jobs:
         with:
           name: playwright-report-merged
           path: playwright-report/
-          retention-days: 14
+          retention-days: 7

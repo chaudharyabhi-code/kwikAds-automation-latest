@@ -313,7 +313,7 @@ this.archivedAdBadges = this.adsLibraryContent
       .first()
       .waitFor({ state: 'hidden', timeout: 15000 })
       .catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   async getResultsCount() {
@@ -353,7 +353,7 @@ this.archivedAdBadges = this.adsLibraryContent
   async selectKaaiOption(option) {
     await this.kaaiAnalysisFilter.click();
     await this.page.locator('.ant-select-dropdown').getByTitle(option, { exact: true }).click();
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   async searchBrandDropdown(text) {
@@ -720,7 +720,7 @@ this.archivedAdBadges = this.adsLibraryContent
 
     await this.cardMenuTagCompetitor.click();
     await this.successToast.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     await this.closeCardMenu();
     return 'tagged';
   }
@@ -798,7 +798,7 @@ this.archivedAdBadges = this.adsLibraryContent
     } else {
       await this.clickCardCompetitorMenuItem();
       await this.successToast.waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
-      await this.page.waitForLoadState('networkidle');
+      await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     }
     return this.getFirstCardBrandName();
   }
@@ -814,7 +814,7 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.removeCompetitorModal.waitFor({ state: 'visible', timeout: 10000 });
     await this.removeCompetitorConfirmBtn.click();
     await this.removeCompetitorModal.waitFor({ state: 'hidden', timeout: 10000 });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
     return true;
   }
 
@@ -834,7 +834,7 @@ this.archivedAdBadges = this.adsLibraryContent
     await this.page.locator("span[aria-label='loading']").first()
       .waitFor({ state: 'hidden', timeout: 10000 })
       .catch(() => {});
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // ── Share Creative popup ──────────────────────────────────────────────────────
@@ -1185,7 +1185,7 @@ this.archivedAdBadges = this.adsLibraryContent
   // Clicks the back arrow to return to the collections list
   async goBackFromCollection() {
     await this.collectionBackButton.click();
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // Opens the "Save to Collection" modal (must already be in select mode with cards selected)
@@ -1213,7 +1213,7 @@ this.archivedAdBadges = this.adsLibraryContent
       .filter({ hasText: collectionName }).first();
     await row.click();
     await this.saveToCollectionModal.waitFor({ state: 'hidden' });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   // ── KAAI Coverage ─────────────────────────────────────────────────────────────

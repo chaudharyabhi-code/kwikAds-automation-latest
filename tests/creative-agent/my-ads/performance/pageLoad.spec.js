@@ -3,6 +3,10 @@ import { KwiksAdsCreativeAgent } from '../../../../pages/kwikads';
 import { MyAds, VIEW_DATA_BY_TABS, PERF_COLUMNS, PERF_DEFAULTS } from '../../../../pages/my-ads';
 import { AdsLibrary } from '../../../../pages/ads-library';
 
+// Covers beforeEach too: test.slow() inside a test body runs only after the hook has spent its
+// budget, so a slow login + merchant select + Performance open died at the 120s default.
+test.describe.configure({ timeout: 360000 });
+
 let myAds;
 
 test.beforeEach(async ({ page }) => {

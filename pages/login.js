@@ -37,7 +37,23 @@ export class LoginPage {
     await this.enterUsername();
     await this.submitButton.click();
     await this.enterPassword();
+
+    // Surface the backend's reason for a rejected sign-in. The app swallows it completely: on a
+    // 400 it silently resets the form to the email step and shows nothing, so a locked account
+    // surfaced 15s later as "waiting for input[placeholder=\"******\"]" — a timeout that says
+    // nothing about the real cause. The lock is the one failure worth naming, because it blocks
+    // every test in the suite for the better part of an hour.
+    const signin = this.page
+      .waitForResponse(r => /dashboard\/user\/signin/.test(r.url()), { timeout: 30000 })
+      .catch(() => null);
     await this.submitButton.click();
+
+    const res = await signin;
+    if (res && !res.ok()) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(`Sign-in rejected (${res.status()}): ${body.message ?? '<no message>'}`);
+    }
+
     await this.enterOTP();
     await this.otpSubmitButton.click();
   }
@@ -51,6 +67,6 @@ export class LoginPage {
     // Wait for the dialog to fully close before returning — merchant context is only
     // committed once the dialog dismisses and the page settles
     await this.page.locator('div[role="dialog"]').waitFor({ state: 'hidden' });
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 }

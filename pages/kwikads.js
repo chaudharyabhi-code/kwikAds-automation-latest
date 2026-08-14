@@ -56,6 +56,7 @@ export class KwiksAdsCreativeAgent {
 
     await this.page.goto(process.env.BASE_URL);
     await this._settleNetwork();
+    await this._reAuthenticateIfLoggedOut();
 
     if (process.env.KA_BASE_URL) {
       await this.page.context().addCookies([{
@@ -94,6 +95,31 @@ export class KwiksAdsCreativeAgent {
   async _settleNetwork(timeout = 15000) {
     await this.page.waitForLoadState('networkidle', { timeout }).catch(() => {});
     await this._waitForGlobalLoader();
+  }
+
+  // Signs in again when the saved session has died, and saves the new one for the tests that
+  // follow.
+  //
+  // Why this has to exist: the QA session survives roughly fifteen minutes — less than a single
+  // spec file takes. Once it lapses, storageState hands every remaining test a logged-out context
+  // and they all fail 60s later "waiting for button[type=button] span[role=img]", a merchant
+  // switcher that only exists when signed in. That is how a run went 23 passed / 32 failed with
+  // nothing wrong in the tests. Re-authenticating here turns a whole-run wipeout into one login.
+  //
+  // Writing the state back means later tests reuse this session instead of each logging in
+  // again, which keeps the count low enough not to look like a brute-force attempt.
+  async _reAuthenticateIfLoggedOut() {
+    const onLoginScreen = /\/login/.test(this.page.url())
+      || await this.page.locator('input[placeholder="example@email.com"]')
+        .isVisible({ timeout: 5000 }).catch(() => false);
+    if (!onLoginScreen) return;
+
+    console.log('saved session expired mid-run — signing in again');
+    const { LoginPage } = await import('./login.js');
+    await new LoginPage(this.page).login();
+    await this.page.waitForURL(/executive-summary/, { timeout: 60000 });
+    await this._settleNetwork();
+    await this.page.context().storageState({ path: '.auth/user.json' }).catch(() => {});
   }
 
   // Waits out the blocking shell overlay. Non-fatal: if it never clears, carry on and let the
@@ -146,7 +172,12 @@ export class KwiksAdsCreativeAgent {
     await this.merchantSearchInput.fill(process.env.MERCHANT_ID);
     // Wait for search results to reload after the query
     await this.merchantDialogLoader.waitFor({ state: 'hidden' });
-    await this.merchantRadioFirst.check();
+    // Then wait on the RESULT, not just the absence of the loader: "hidden" is satisfied before
+    // the loader has even mounted, so check() was racing the filtered list and spending its whole
+    // 20s action timeout on a radio that had not appeared yet. Generous budgets — this is the
+    // post-login shell, the slowest point of any test.
+    await this.merchantRadioFirst.waitFor({ state: 'attached', timeout: 45000 });
+    await this.merchantRadioFirst.check({ timeout: 30000 });
     await this.page.waitForTimeout(500);
     await this.setMerchantButton.click();
     await this.merchantDialog.waitFor({ state: 'hidden' });
