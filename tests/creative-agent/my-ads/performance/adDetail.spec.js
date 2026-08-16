@@ -20,12 +20,6 @@ const ROW_TO_MODAL_METRIC = {
   'Revenue': 'REVENUE',
 };
 
-// File-level, not per-test test.slow(): test.slow() is the first statement of a test BODY, so it
-// runs only after beforeEach has finished and cannot extend the budget the hook itself spends.
-// beforeEach here logs in, selects the merchant and opens the Performance view, which on a
-// merchant with real volume exceeded the 120s default and failed in the hook.
-test.describe.configure({ timeout: 360000 });
-
 let myAds, collections;
 let createdCollection = null;
 

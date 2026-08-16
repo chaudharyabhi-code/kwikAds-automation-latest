@@ -5,10 +5,6 @@ import { MyAds } from '../../../../pages/my-ads';
 // Long enough that no real ad name can contain it
 const NO_MATCH = 'zzq-no-such-creative-zzq';
 
-// File-level, not per-test test.slow(): test.slow() only runs after beforeEach has spent its
-// budget, so it cannot rescue a hook that is itself slow.
-test.describe.configure({ timeout: 360000 });
-
 let myAds;
 
 test.beforeEach(async ({ page }) => {
