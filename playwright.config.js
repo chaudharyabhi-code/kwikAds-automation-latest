@@ -56,17 +56,32 @@ export default defineConfig({
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  /* Retry on CI only */
-  retries: process.env.CI ? 0 : 0,
+  /* Retry once on CI. The comment said "retry on CI only" but both branches were 0, so nothing
+     ever retried: one network blip, one slow render, and a test is red for good. That is a large
+     part of why the same commit produced 20 failures one run and 73 the next. A retry also marks
+     the test "flaky" rather than "passed", so genuine instability stays visible instead of being
+     hidden — and a real defect fails both attempts and still reports as failed. */
+  retries: process.env.CI ? 1 : 0,
   /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 4 : undefined,
+  /* 2, not 4. A GitHub runner has 2-4 cores; four browsers plus the app starve each other and
+     the symptom is exactly the timeouts above. Parallelism comes from sharding across runners
+     instead — 8 shards x 2 workers is 16 browsers at once, spread over 8 machines. */
+  workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [['list'], ['html'],['blob']],
   /* Per-test budget. Every test logs in from scratch (login + merchant select + KYC
      dismiss) before it does anything, which alone costs ~30-40s on the dev env — and
      any test that then opens a collection or an ad detail measured 52-56s. 60s left no
      headroom, so those failed intermittently in beforeEach/mid-test. */
-  timeout: 120000,
+  /* 360s, not 120s. On CI a run of 347 tests produced 79 failures and 53 of them were
+     "Test timeout of 120000ms exceeded while running beforeEach" — the hook alone (log in,
+     select the merchant, navigate, wait for the shell) costs 40-60s on a loaded runner, so any
+     test whose setup also opens a collection or a modal ran out of budget before its first
+     assertion. Almost none of those were real defects.
+     A long budget does not slow a passing run: tests still finish when they finish. It only
+     changes how long a genuinely stuck one waits, and actionTimeout/navigationTimeout below
+     already cap individual actions so a real hang still fails fast with a named locator. */
+  timeout: 360000,
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
@@ -84,7 +99,11 @@ export default defineConfig({
     viewport: VIEWPORT,
     ignoreHTTPSErrors: true,
     launchOptions: {
-      slowMo: 500,
+      /* Local only. slowMo pauses 500ms before EVERY Playwright action, which is useful when
+         watching a run headed and pure waste on CI: a test doing 40 actions sleeps 20s, and
+         across 347 tests that is well over an hour of deliberate idling, on top of the real work.
+         It was applied unconditionally, so CI paid it too. */
+      slowMo: process.env.CI ? 0 : 500,
       args: [
         '--start-maximized',
       ],
