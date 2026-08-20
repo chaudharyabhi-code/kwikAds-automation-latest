@@ -24,7 +24,10 @@ export class Competitor {
     this.syncedTodayTooltip = this.page.locator('.ant-tooltip-inner[role="tooltip"]');
 
     // Popover that appears when clicking the Sync button on a card
-    this.syncPopover = this.page.locator('.ant-popover-inner[role="tooltip"]');
+    // :visible and .first() both matter. Ant leaves every popover and tooltip it has ever opened
+    // in the DOM, so this matched 8 nodes and resolved to a hidden one — three sync tests failed
+    // with "unexpected value hidden" while the real sync popover was on screen.
+    this.syncPopover = this.page.locator('.ant-popover-inner[role="tooltip"]:visible').first();
 
     // Ad Library virtual grid — becomes visible after "View Ads" navigates away from Competitors tab
     this.adLibraryGrid = this.adsLibraryContent.locator('.virtualized-ad-grid-scroller');

@@ -139,6 +139,18 @@ export class Collections {
     return this.collectionCards.count();
   }
 
+  // "1-16 of 31" under the grid → { from: 1, to: 16, total: 31 }, or null on a single page where
+  // the app renders no pagination control at all.
+  async getPaginationRange() {
+    const text = await this.adsLibraryContent.locator('.ant-pagination-total-text').first()
+      .innerText().catch(() => '');
+    // [-–—]: the app writes "1–16 of 31" with an EN DASH, not a hyphen. A hyphen-only pattern
+    // matched nothing, this returned null, and the test then took its "no pagination" branch and
+    // compared 31 against the 16 cards on the page.
+    const parts = text.match(/(\d+)\s*[-–—]\s*(\d+)\s+of\s+(\d+)/);
+    return parts ? { from: +parts[1], to: +parts[2], total: +parts[3] } : null;
+  }
+
   // Returns the Nth collection card locator (0-based, excludes Saved Ads)
   getCard(n = 0) {
     return this.collectionCards.nth(n);

@@ -92,7 +92,12 @@ this.archivedAdBadges = this.adsLibraryContent
     this.selectionCountText         = this.adsLibraryContent.locator('span').filter({ hasText: /\d+ selected/ });
     // Collections tab and list
     this.collectionsTab             = this.adsLibraryContent.locator('button').filter({ hasText: /^Collections$/ });
-    this.collectionListCards        = this.adsLibraryContent.locator("xpath=//button[contains(.,'New Collection')]/ancestor::div[@style='display: flex; flex-direction: column; gap: 12px;']/div[contains(@style,'display: grid')]/div");
+    // The collections grid, matched the same way collections.js does it. The previous XPath
+    // anchored on an EXACT style attribute — @style='display: flex; flex-direction: column;
+    // gap: 12px;' — so a single property change anywhere in that declaration matched nothing and
+    // openFirstCollectionCard timed out waiting for a card that was on screen.
+    this.collectionListCards        = this.adsLibraryContent
+      .locator('div[style*="minmax(220px"]').locator('> div');
     // Inside an open collection
     this.openCollectionTitle        = this.adsLibraryContent.locator('div[style*="font-weight: 600"][style*="font-size: 18px"]');
     this.collectionShowingText      = this.adsLibraryContent.locator('span').filter({ hasText: /Showing \d+ ads/ });
@@ -345,9 +350,26 @@ this.archivedAdBadges = this.adsLibraryContent
   }
 
   async selectAdFormat(format) {
+    const before = await this.resultsCount.innerText().catch(() => '');
     await this.adFormatFilter.click();
     await this.adFormatDropdownOptions.filter({ hasText: format }).click();
     await this.waitForFilter();
+    // Wait for the results counter to CHANGE, not merely to exist. The previous count stays on
+    // screen while the filtered query is in flight, so a read straight after returned the count
+    // for the PREVIOUS filter: Image reported 20,229 — the All total — and Image + Video summed
+    // to 35,066 against a 20,229 total, which looked like an app defect and was not.
+    // Non-fatal: two filters can legitimately return the same count.
+    await expect.poll(() => this.resultsCount.innerText().catch(() => ''),
+      { timeout: 20000, intervals: [500] }).not.toBe(before).catch(() => {});
+
+    // Then wait for the GRID, not just the count. The counter updates when the query returns,
+    // but the virtualised cards mount after that, so a card count taken here read 0 and looked
+    // like "the Image filter returned no IMAGE cards". Cards or the empty state — either is a
+    // settled grid.
+    await expect.poll(async () => {
+      if (await this.adCardList.locator('> div').count() > 0) return true;
+      return this.emptyState.isVisible().catch(() => false);
+    }, { timeout: 20000, intervals: [500] }).toBe(true).catch(() => {});
   }
 
   async selectKaaiOption(option) {

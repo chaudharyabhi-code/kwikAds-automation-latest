@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { KwiksAdsCreativeAgent } from '../../../pages/kwikads';
 import { AdsLibrary } from '../../../pages/ads-library';
+import { Collections } from '../../../pages/collections';
 
 let adsLibrary;
+let createdCollection = null;
 
 // Shared setup: log in, land on the page under test.
 test.beforeEach(async ({ page }) => {
@@ -10,6 +12,16 @@ test.beforeEach(async ({ page }) => {
   adsLibrary = new AdsLibrary(page);
   await adsLibrary.navigateToAdsLibrary();
   await page.waitForLoadState('networkidle');
+});
+
+// Remove any collection a test created. No-op for the tests that create none.
+test.afterEach(async ({ page }) => {
+  if (!createdCollection) return;
+  const name = createdCollection;
+  createdCollection = null;
+  const collections = new Collections(page);
+  await collections.navigate().catch(() => {});
+  await collections.deleteCollectionByName(name).catch(() => {});
 });
 
 // ─── Test 1: Clicking Select enters selection mode ────────────────────────────
@@ -92,17 +104,22 @@ test('Select mode - clicking a selected card deselects it and decrements count t
 //   3. Note the count the modal shows for that collection (may differ — known bug)
 //   4. Select the collection in the modal → navigate back to it
 //   5. Assert count increased by exactly 2
+// A BRAND-NEW collection, not the first existing one. Saving the library's first two ads into a
+// shared collection only adds two the first time: the merchant keeps its collections between runs,
+// so on the next run one of those ads is already there, the app rejects the duplicate, and the
+// count rises by 1 — which reported as "saves 2 ads" failing (expected 15, received 14). An empty
+// collection makes the delta exactly 2 every time.
 test('Add to Collection - saves 2 selected ads and collection count increases by 2', async ({ page }) => {
-  // ── Step 1: Record the actual ad count inside the first collection ──────────
-  await adsLibrary.navigateToCollections();
-  // No skip guard: this spec runs in the chromium-collections project, which depends on
-  // collection-setup, so a collection is guaranteed to exist. The old guard read the card
-  // count before the grid had rendered and skipped on a merchant that had dozens;
-  // openFirstCollectionCard() waits for the grid and reports a real failure if it stays empty.
-  await adsLibrary.openFirstCollectionCard();
+  // ── Step 1: Create an empty collection to save into ─────────────────────────
+  const collections = new Collections(page);
+  const collectionName = `selectmode-add-2 ${Date.now()}`;
+  await collections.navigate();
+  // createCollection only fills and submits — the modal has to be opened first
+  await collections.openNewCollectionModal();
+  await collections.createCollection(collectionName);
+  createdCollection = collectionName;
 
-  const collectionName = await adsLibrary.getOpenCollectionName();
-  const countBefore    = await adsLibrary.getOpenCollectionAdCount();
+  const countBefore = 0;
   console.log(`Target collection: "${collectionName}" | Ads before adding: ${countBefore}`);
 
   // ── Step 2: Return to Ad Library and select 2 ad cards ─────────────────────
@@ -126,11 +143,13 @@ test('Add to Collection - saves 2 selected ads and collection count increases by
   await adsLibrary.clickCollectionInModal(collectionName);
 
   // ── Step 5: Navigate to Collections → open same collection → verify count ───
-  await adsLibrary.navigateToCollections();
+  // Search and open BY NAME: the grid paginates and reorders as collections are created, so
+  // "the first card" is not the one we just made.
+  await collections.navigate();
+  await collections.search(collectionName);
+  await collections.openCollectionByName(collectionName);
 
-  await adsLibrary.openFirstCollectionCard();
-
-  const countAfter = await adsLibrary.getOpenCollectionAdCount();
+  const countAfter = await collections.getDetailAdCount();
 
   console.table({
     collectionName,
