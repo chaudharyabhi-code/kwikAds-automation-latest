@@ -54,11 +54,29 @@ test('My Ads - AD Format filter: the sum of every individual format equals the A
   }
 
   const sum = Object.values(counts).reduce((a, b) => a + b, 0);
-  console.table({ ...counts, sum, allFormatsTotal });
 
-  // Every ad belongs to exactly one format, so the parts must account for the whole.
-  // This is also what proves the filters are disjoint — no ad double-counted, none dropped.
-  expect(sum).toBe(allFormatsTotal);
+  // DRAFTS are the missing piece. A draft appears under All but under NO format filter, so the
+  // formats cannot sum to the All total on their own — the identity is
+  // sum(formats) + drafts = All. Asserting sum === All failed by exactly the draft count.
+  await myAds.clickSubTab(myAds.subTabDraft);
+  const { total: draftTotal } = await myAds.getResultsLoadedAndTotal();
+  await myAds.clickSubTab(myAds.subTabAll);
+
+  // The merchant is shared, and the upload specs add creatives while this loop runs, so the All
+  // total can legitimately move mid-test. Re-read it and accept the identity against either
+  // reading rather than picking an arbitrary tolerance.
+  await myAds.selectAdFormat(AD_FORMAT_ALL);
+  const { total: allAfter } = await myAds.getResultsLoadedAndTotal();
+
+  console.table({ ...counts, sum, draftTotal, allFormatsTotal, allAfter });
+
+  // Every ad belongs to exactly one format, plus the drafts that belong to none: the parts must
+  // account for the whole. This is what proves the filters are disjoint — nothing double-counted,
+  // nothing dropped.
+  expect([allFormatsTotal, allAfter],
+    `formats sum to ${sum} plus ${draftTotal} drafts = ${sum + draftTotal}, `
+    + `but All reads ${allFormatsTotal} (${allAfter} after the loop)`)
+    .toContain(sum + draftTotal);
 });
 
 // ─── Test 2: All Formats resets the filter ────────────────────────────────────
