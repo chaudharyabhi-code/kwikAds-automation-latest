@@ -61,7 +61,7 @@ export default defineConfig({
      part of why the same commit produced 20 failures one run and 73 the next. A retry also marks
      the test "flaky" rather than "passed", so genuine instability stays visible instead of being
      hidden — and a real defect fails both attempts and still reports as failed. */
-  retries: process.env.CI ? 1 : 0,
+  retries: process.env.CI ? 0 : 0,
   /* Opt out of parallel tests on CI. */
   /* 2, not 4. A GitHub runner has 2-4 cores; four browsers plus the app starve each other and
      the symptom is exactly the timeouts above. Parallelism comes from sharding across runners

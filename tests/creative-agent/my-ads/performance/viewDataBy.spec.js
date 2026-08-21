@@ -78,7 +78,10 @@ test('Performance - returning to Ad Level unlocks FORMAT again', async () => {
 for (const tab of DIMENSION_TABS) {
   test(`Performance ${tab} - groups by its ${tab} value, expands to member ads and collapses back`, async () => {
     await myAds.openViewDataByTab(tab);
-    await expect(myAds.perfFirstColumnHeader).toHaveText(tab);
+    // 30s, not the 5s assertion default: Message Style and Visual Style are the two tabs that do
+    // NOT lock FORMAT, so they load with FORMAT = All and far more data. On QA the table had not
+    // rendered at all when this ran and the failure read "element(s) not found" for thead th.
+    await expect(myAds.perfFirstColumnHeader).toHaveText(tab, { timeout: 30000 });
 
     const groups = await myAds.getPerfGroupTitles();
     if (groups.length === 0) {
@@ -229,4 +232,22 @@ test('Performance - Ad Level keeps no lingering lock after visiting a dimension 
   // And it can be put back
   await myAds.selectPerfFormat(PERF_DEFAULTS.format);
   expect(await myAds.getSelectValue(myAds.perfFormatFilter)).toBe(PERF_DEFAULTS.format);
+});
+
+
+
+// ─── Switching tabs collapses expanded groups ─────────────────────────────────
+test('Performance - switching dimension tabs leaves every group collapsed', async () => {
+  await myAds.openViewDataByTab('Hook');
+  test.skip(await myAds.perfGroupRows.count() === 0, 'Hook has no groups on this merchant');
+
+  await myAds.expandPerfGroup(0);
+  expect(await myAds.perfAdRows.count(), 'the group did not expand').toBeGreaterThan(0);
+
+  await myAds.openViewDataByTab('Narration');
+  expect(await myAds.perfAdRows.count(), 'Narration opened with ad rows already showing').toBe(0);
+
+  await myAds.openViewDataByTab('Hook');
+  expect(await myAds.perfAdRows.count(), 'Hook kept its group expanded after leaving and returning')
+    .toBe(0);
 });

@@ -825,18 +825,53 @@ export class MyAds {
     return (await this._parsePerfRows(this.perfGroupRows)).map(row => row.name);
   }
 
-  // Clicking a group row expands it. Waits on the ad rows actually appearing rather than a
-  // fixed delay, since the group fetches its ads on expand.
+  // The group's name cell — clicking this is what toggles the group open and shut.
+  perfGroupTitle(n = 0) {
+    return this.perfGroupRows.nth(n).locator('td').first()
+      .locator('div[style*="font-weight: 700"]').first();
+  }
+
+  // The "154 ads" badge in each group row's Ads column, as numbers
+  async getPerfGroupBadges() {
+    return this.perfGroupRows.evaluateAll(rows => rows.map(row => {
+      const cell = row.querySelectorAll('td')[1];
+      const digits = (cell?.innerText ?? '').match(/(\d[\d,]*)/);
+      return digits ? parseInt(digits[1].replace(/,/g, ''), 10) : null;
+    }));
+  }
+
+  // "9 groups · 255 ads" → { groups: 9, ads: 255 }. Null on Ad Level, which counts differently.
+  async getPerfGroupedCounts() {
+    const parts = (await this._perfCounterText())
+      .match(/([\d,]+)\s*groups?\s*·\s*([\d,]+)\s*ads?/i);
+    return parts
+      ? { groups: +parts[1].replace(/,/g, ''), ads: +parts[2].replace(/,/g, '') }
+      : null;
+  }
+
+  // Clicking a group's NAME toggles it. Waits on the ad rows actually appearing rather than a
+  // fixed delay, since the group fetches its ads on expand, and scrolls the row into view first —
+  // lower groups sit below the fold once a tab has several.
   async expandPerfGroup(n = 0) {
     const before = await this.perfAdRows.count();
-    await this.perfRows.nth(n).click();
+    await this.perfGroupTitle(n).scrollIntoViewIfNeeded();
+    await this.perfGroupTitle(n).click();
+    // Both signals: the chevron confirms THIS group opened, the row count confirms its ads
+    // arrived (the group fetches them on expand).
+    await expect.poll(() => this.isPerfGroupExpanded(n), { timeout: 20000, intervals: [500] })
+      .toBe(true);
     await expect.poll(() => this.perfAdRows.count(), { timeout: 20000, intervals: [500] })
       .toBeGreaterThan(before);
   }
 
+  // Waits on THIS group's chevron, not on a global row count. A count-based wait breaks two ways:
+  // collapsing an already-collapsed group can never satisfy "fewer rows than before" and burns the
+  // full timeout, and with another group still open the total does not drop either.
   async collapsePerfGroup(n = 0) {
-    await this.perfRows.nth(n).click();
-    await expect.poll(() => this.perfAdRows.count(), { timeout: 20000, intervals: [500] }).toBe(0);
+    await this.perfGroupTitle(n).scrollIntoViewIfNeeded();
+    await this.perfGroupTitle(n).click();
+    await expect.poll(() => this.isPerfGroupExpanded(n), { timeout: 20000, intervals: [500] })
+      .toBe(false);
   }
 
   // The dimension tabs force FORMAT to Video and disable it; Ad Level leaves it editable.
