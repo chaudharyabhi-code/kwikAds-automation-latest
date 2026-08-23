@@ -882,6 +882,31 @@ export class MyAds {
   // First column header — "Ad creative" on Ad Level, the dimension name on a grouped tab
   get perfFirstColumnHeader() { return this.perfTable.locator('thead th').first(); }
 
+  // Every column header's text, in order. Only the name inside the <th> is read — the info
+  // circles some headers carry contribute no text.
+  async getPerfHeaders() {
+    return this.perfTable.locator('thead th')
+      .evaluateAll(cells => cells.map(cell => cell.innerText.replace(/\s+/g, ' ').trim()));
+  }
+
+  // The small trend button in a row's Velocity cell (title="View trend")
+  perfVelocityTrendButton(n = 0) {
+    return this.perfRows.nth(n).locator('button[title="View trend"]').first();
+  }
+
+  // The Spend Velocity chart modal. Filtered on "Performance timeline tracker", which is unique
+  // to it — the ad detail modal also carries the words "Spend Velocity" as a metric tile label.
+  get perfVelocityModal() {
+    return this.page.locator('.ant-modal-content')
+      .filter({ hasText: 'Performance timeline tracker' }).first();
+  }
+
+  // The chart drawn inside the velocity modal, and its range presets (7D / 14D / 30D / Campaign)
+  get perfVelocityChart() { return this.perfVelocityModal.locator('svg, canvas').first(); }
+  perfVelocityPreset(label) {
+    return this.perfVelocityModal.locator('button').filter({ hasText: label }).first();
+  }
+
   // Text of the action buttons in a row: "Competitor Tracker" on a group, "Creative Signals"
   // on an ad. The eye icon has no text, so it drops out.
   async getPerfGroupButtons(n = 0) { return this._perfRowButtons(this.perfGroupRows.nth(n)); }
