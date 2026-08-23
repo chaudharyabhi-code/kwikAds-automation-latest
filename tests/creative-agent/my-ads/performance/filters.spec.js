@@ -303,3 +303,72 @@ test('Performance - CLEAR ALL resets every active filter to its default', async 
   expect.soft(await myAds.getPerfDateValues(), 'DATE RANGE not reset')
     .toEqual([defaultFrom, defaultTo]);
 });
+
+// ─── STATUS + FORMAT + SORT BY + DATE RANGE together ──────────────────────────
+test('Performance - STATUS, FORMAT, SORT BY and DATE RANGE together scope the results', async () => {
+  const [, originalTo] = await myAds.getPerfDateValues();
+
+  await myAds.selectStatus('Active');
+  await myAds.selectPerfFormat('Video');
+  await myAds.selectSortBy('Orders');
+  await myAds.setPerfDateRange(originalTo, originalTo);
+
+  // All four are shown as applied
+  expect.soft(await myAds.getSelectValue(myAds.statusFilter)).toBe('Active');
+  expect.soft(await myAds.getSelectValue(myAds.perfFormatFilter)).toBe('Video');
+  expect.soft(await myAds.getSelectValue(myAds.sortByFilter)).toBe('Orders');
+  expect.soft(await myAds.getPerfDateValues()).toEqual([originalTo, originalTo]);
+
+  // ...and every row obeys the two conditions a row actually exposes, still ordered by Orders
+  const rows = await myAds.getPerfRows();
+  for (const row of rows) {
+    expect.soft(row.status.toLowerCase(), `"${row.name}" is not Active`).toBe('active');
+    expect.soft(row.format.toLowerCase(), `"${row.name}" is not Video`).toBe('video');
+  }
+  const orders = (await myAds.getPerfMetricValues('Orders')).filter(v => v !== null);
+  expect.soft(orders.every((v, i) => i === 0 || orders[i - 1] >= v),
+    `Orders not in descending order: ${orders.join(', ')}`).toBe(true);
+});
+
+// ─── Clearing one filter leaves the rest applied ──────────────────────────────
+test('Performance - clearing one filter re-scopes to the filters that remain', async () => {
+  await myAds.selectStatus('Active');
+  await myAds.selectPerfFormat('Video');
+  const bothTotal = await myAds.getPerfTotal();
+
+  // Drop FORMAT back to All; STATUS must survive and the result must widen or hold
+  await myAds.selectPerfFormat(PERF_DEFAULTS.format);
+
+  expect(await myAds.getSelectValue(myAds.statusFilter),
+    'clearing FORMAT also reset STATUS').toBe('Active');
+  expect(await myAds.getSelectValue(myAds.perfFormatFilter)).toBe(PERF_DEFAULTS.format);
+
+  const statusOnlyTotal = await myAds.getPerfTotal();
+  expect(statusOnlyTotal,
+    `Active alone (${statusOnlyTotal}) cannot be fewer than Active + Video (${bothTotal})`)
+    .toBeGreaterThanOrEqual(bothTotal);
+
+  for (const row of await myAds.getPerfRows()) {
+    expect.soft(row.status.toLowerCase(), `"${row.name}" is not Active`).toBe('active');
+  }
+});
+
+// ─── Search on top of a filter ────────────────────────────────────────────────
+test('Performance - a search combines with an active filter to narrow further', async () => {
+  await myAds.selectStatus(STATUS_ALL);
+  const filteredTotal = await myAds.getPerfTotal();
+
+  const rows = await myAds.getPerfRows();
+  test.skip(rows.length === 0, 'No performance data for the default period');
+
+  await myAds.searchPerf(rows[0].name);
+
+  // The filter is still applied, and the search has narrowed it
+  expect(await myAds.getSelectValue(myAds.statusFilter),
+    'searching reset STATUS').toBe(STATUS_ALL);
+  const searchedTotal = await myAds.getPerfTotal();
+  expect(searchedTotal, `search returned ${searchedTotal} of ${filteredTotal} ads`)
+    .toBeLessThanOrEqual(filteredTotal);
+  expect((await myAds.getPerfRows()).map(row => row.name),
+    'the searched ad is missing from its own search').toContain(rows[0].name);
+});
